@@ -1,0 +1,74 @@
+@apiUrl = http://192.168.10.200/cws/api
+@authToken = Ygb3cVlXg13I
+
+### Ping
+# @name ping
+GET {{apiUrl}}
+Crestron-RestAPI-AuthToken: {{authToken}}
+
+### login
+# @name login
+GET {{apiUrl}}/login
+Crestron-RestAPI-AuthToken: {{authToken}}
+
+### DEVICES ----------------------------------------------
+
+### List devices
+# @name listDevices
+GET {{apiUrl}}/devices
+Crestron-RestAPI-AuthKey: {{login.response.body.authkey}}
+
+### Get device
+# @name getDevice
+GET {{apiUrl}}/devices/{{listDevices.response.body.devices[0].id}}
+Crestron-RestAPI-AuthKey: {{login.response.body.authkey}}
+
+### SHADES ----------------------------------------------
+
+### List shades
+# @name listShades
+GET {{apiUrl}}/shades
+Crestron-RestAPI-AuthKey: {{login.response.body.authkey}}
+
+### Get shade
+# @name getShade
+GET {{apiUrl}}/shades/{{listShades.response.body.shades[0].id}}
+Crestron-RestAPI-AuthKey: {{login.response.body.authkey}}
+
+
+### Set shades
+# @name setShades
+POST {{apiUrl}}/shades/setstate
+Crestron-RestAPI-AuthKey: {{login.response.body.authkey}}
+Content-Type: application/json
+
+{
+  "shades": [
+    {
+      "position": 0,
+      "id": 1,
+      "name": "Door Shade",
+      "subType": "Shade",
+      "connectionStatus": "online",
+      "roomId": 2
+    },
+    {
+      "position": 0,
+      "id": 2,
+      "name": "Window Shade",
+      "subType": "Shade",
+      "connectionStatus": "online",
+      "roomId": 2
+    },
+    {
+      "position": 0,
+      "id": 3,
+      "name": "Front Shade",
+      "subType": "Shade",
+      "connectionStatus": "online",
+      "roomId": 1
+    }
+  ]
+}
+
+### -----------------------------------------------------
