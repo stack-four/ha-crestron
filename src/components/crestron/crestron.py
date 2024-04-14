@@ -190,8 +190,6 @@ from __future__ import CrestronShade
 
 # This should be singleton
 class CrestronHub:
-    SHADE_OPEN_POSITION = 0
-    SHADE_CLOSED_POSITION = 65535
 
     def __init__(self, ipAddress: str, authToken: str):
         self.__init__(CrestronAPI(ipAddress, authToken))
@@ -259,7 +257,8 @@ class CrestronHub:
         if index < 0:
             return None
 
-        return shades[index]
+        shade = shades[index]
+        return {**shade}
 
     async def __findShadeIndex(self, shades: List[ShadeState], id: int) -> int:
         # TODO Refactor findIndex()
@@ -275,6 +274,8 @@ class CrestronHub:
 
 
 class CrestronShade:
+    SHADE_CLOSED_POSITION = 0
+    SHADE_OPEN_POSITION = 65535
 
     def __init__(self, hub: CrestronHub, shadeId: int):
         self.__hub = hub
