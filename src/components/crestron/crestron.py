@@ -1,10 +1,12 @@
 import asyncio
+from time import sleep
 from typing import Any, Callable, Dict, List, Mapping
 
 import requests
 
 # import Response
 import logging
+from __future__ import CrestronShade
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -184,10 +186,6 @@ class CrestronAPI:
         except requests.exceptions.RequestException as ex:
             return ex.response
 
-
-from __future__ import CrestronShade
-
-
 # This should be singleton
 class CrestronHub:
 
@@ -218,27 +216,27 @@ class CrestronHub:
         self.__version = await self.__api.getVersion()
         return self.__version
 
-    async def __setShadesState(self, states: List[ShadeState]):
+    async def __setShadesState(self, states: List[ShadeState])->bool:
         _LOGGER.debug("Attempting to fetch shades from api")
         if await self.__api.setShades(states):
             _LOGGER.debug("Successfully updated shades ")
             self.__shades = states
+            return True
         else:
             _LOGGER.warn("Failed to set shades state")
             self.__clearCache()
+            return False
 
-    async def __setShadeState(self, state: ShadeState):
+    async def __setShadeState(self, state: ShadeState)->bool:
         _LOGGER.debug("Attempting to set shade state from api")
         shades = await self.__getShadesState()
         index = self.__findShadeIndex(shades, id)
 
         if index < 0:
-            return ValueError(
-                f"Shade with id '{state.id}' not found."
-            )  # TODO Change error type
+            raise ValueError(f"Shade with id '{state.id}' not found.")  # TODO Change error type
 
         shades = shades[:index] + state + shades[index + 1 :]
-        await self.__setShadesState(shades)
+        return await self.__setShadesState(shades)
 
     async def __getShadesState(self, skipCache=False) -> List[ShadeState]:
         """Get shades"""
@@ -272,6 +270,7 @@ class CrestronHub:
         self.__shades = None
         self.__version = None
 
+class ShadeNotFoundError(Exception): ...
 
 class CrestronShade:
     SHADE_CLOSED_POSITION = 0
@@ -282,13 +281,18 @@ class CrestronShade:
         self._id = shadeId
 
     @property
-    def hub(self):
+    def hub(self)->CrestronHub:
         return self.__hub
 
-    async def __getState(self, skipCache=False) -> ShadeState | None:
-        return await self.__hub.__getShadeState(self._id, skipCache)
+    async def __getState(self, skipCache=False) -> ShadeState :
+        state = await self.__hub.__getShadeState(self._id, skipCache)
+        
+        if state is None:
+            raise ShadeNotFoundError(f"Shade with id '{self.id}' not found.") #TODO Change error type
+        
+        return state
 
-    async def __setState(self, state: ShadeState):
+    async def __setState(self, state: ShadeState)->bool:
         # TODO throw if state.id!= self._id
         return await self.__hub.__setShadeState(state)
 
@@ -298,47 +302,59 @@ class CrestronShade:
     # async def async_add_closing_callback():
     #     """Add closing callback"""
 
-    async def open(self):
+    async def open(self)->bool:
         """Open shade"""
         if await self.setPosition(self.__hub.SHADE_OPEN_POSITION):
             _LOGGER.info("Opening shade")
         else:
             _LOGGER.warn("Failed to open shade")
 
-    async def close(self):
+    async def isOpen(self) ->bool:
+        """Determine if shade is currently in fully opened position"""
+        state = await self.__getState()
+        return state.position == self.hub.SHADE_CLOSED_POSITION
+    
+    async def close(self)->bool:
         """Close shade"""
         if await self.setPosition(self.__hub.SHADE_CLOSED_POSITION):
             _LOGGER.info("Closing shade")
         else:
             _LOGGER.warn("Failed to close shade")
 
-    async def isClosed(self):
+    async def isOpening(self)->bool:
+        return self.__isPositionChanging(lambda pos1,pos2: pos1>pos2) 
+
+    async def isClosed(self) ->bool:
+        """Determine if shade is currently in fully closed position"""
+        state = await self.__getState()
+        return state.position == self.hub.SHADE_CLOSED_POSITION
+
+    async def isClosing(self)->bool:
+        return self.__isPositionChanging(lambda pos1,pos2: pos1<pos2) 
+    
+    async def getPosition(self)->int:
         """Get current position of shade"""
-        shade = await self.__getShade()
-        _LOGGER.debug(f"Shade '{shade.name}' has current position True{shade.position}")
-        return shade.position == self.hub.SHADE_CLOSED_POSITION
+        state = await self.__getState()
+        return state.position
 
-    async def getPosition(self):
-        """Get current position of shade"""
-        shade = await self.__getShade()
-        _LOGGER.debug(f"Shade '{shade.name}' has current position True{shade.position}")
-        return shade.position
+    async def setPosition(self, newPosition: int)->bool:
+        state = await self.__getState()
+        state.position = newPosition
 
-    async def setPosition(self, newPosition: int):
-        def _setPos(s: ShadeState) -> ShadeState:
-            s.position = newPosition
-            return s
-
-        if await self.__setState(_setPos):
+        if await self.__setState(state):
             _LOGGER.info(f"Shade position set to {newPosition}")
             return True
         else:
             _LOGGER.warn(f"Failed to set shade position.")
             return False
 
-    async def __setState(self, state: ShadeState):
-        await self.__hub.__setShadeState(self._id, state)
+    async def __setState(self, state: ShadeState)->bool:
+        return self.__hub.__setShadeState(self._id, state)
 
+    async def __isPositionChanging(self,check:Callable[[int,int],bool],intervalSeconds:int=1)->bool:
+        pos = (await self.__getState(True)).position
+        await sleep(intervalSeconds)
+        return check(pos,(await self.__getState(True)).position)
 
 if __name__ == "__main__":
 

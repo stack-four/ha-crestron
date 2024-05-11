@@ -1,6 +1,8 @@
 @apiUrl = http://192.168.10.200/cws/api
 @authToken = Ygb3cVlXg13I
 
+@openValue = 65535
+
 ### Ping
 # @name ping
 GET {{apiUrl}}
@@ -36,8 +38,44 @@ GET {{apiUrl}}/shades/{{listShades.response.body.shades[0].id}}
 Crestron-RestAPI-AuthKey: {{login.response.body.authkey}}
 
 
-### Set shades
-# @name setShades
+### Open shades
+# @name openShades
+POST {{apiUrl}}/shades/setstate
+Crestron-RestAPI-AuthKey: {{login.response.body.authkey}}
+Content-Type: application/json
+
+{
+  "shades": [
+    {
+      "position": {{openValue}},
+      "id": 1,
+      "name": "Door Shade",
+      "subType": "Shade",
+      "connectionStatus": "online",
+      "roomId": 2
+    },
+    {
+      "position": {{openValue}},
+      "id": 2,
+      "name": "Window Shade",
+      "subType": "Shade",
+      "connectionStatus": "online",
+      "roomId": 2
+    },
+    {
+      "position": {{openValue}},
+      "id": 3,
+      "name": "Front Shade",
+      "subType": "Shade",
+      "connectionStatus": "online",
+      "roomId": 1
+    }
+  ]
+}
+
+
+### Close shades
+# @name closeShades
 POST {{apiUrl}}/shades/setstate
 Crestron-RestAPI-AuthKey: {{login.response.body.authkey}}
 Content-Type: application/json
