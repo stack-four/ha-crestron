@@ -2,197 +2,183 @@
 
 from __future__ import annotations
 
+import logging
+from typing import Any
+
 import voluptuous as vol
 
+from homeassistant import config_entries
 from homeassistant.components import zeroconf
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
-from homeassistant.const import CONF_HOST, CONF_TOKEN
+from homeassistant.const import CONF_HOST
+from homeassistant.core import HomeAssistant
+from homeassistant.data_entry_flow import FlowResult
 import homeassistant.helpers.config_validation as cv
 
-from .api import CrestronAPI
-from .const import DOMAIN, LOGGER, CONF_AUTH_TOKEN, CONF_SCAN_INTERVAL
+from .const import CONF_AUTH_TOKEN, CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL, DOMAIN
+from .api import CrestronAPI, ApiAuthError, ApiError
+
+_LOGGER = logging.getLogger(__name__)
+
+STEP_USER_DATA_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_HOST): str,
+        vol.Required(CONF_AUTH_TOKEN): str,
+        vol.Optional(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL): int,
+    }
+)
 
 
-class CrestronConfigFlow(ConfigFlow, domain=DOMAIN):
-    """Handle config flow for Crestron shade."""
+async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, Any]:
+    """Validate the user input allows us to connect."""
+    api = CrestronAPI(
+        hass=hass,
+        host=data[CONF_HOST],
+        auth_token=data[CONF_AUTH_TOKEN],
+    )
+
+    await api.ping()
+    await api.login()
+
+    # Return validated data
+    return {"title": f"Crestron ({data[CONF_HOST]})"}
+
+
+class CrestronConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+    """Handle a config flow for Crestron."""
 
     VERSION = 1
 
     def __init__(self) -> None:
-        """Handle a config flow for Crestron."""
-        self.host: str = ""
-        self.auth_token: str = ""
-        self.shade_name_given_by_user: str = ""
-        self.scan_interval: int = 30
+        """Initialize the config flow."""
+        self.discovery_info = None
 
     async def async_step_user(
-        self, user_input: dict[str, str] | None = None
-    ) -> ConfigFlowResult:
-        """Handle the user step."""
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle the initial step."""
         errors: dict[str, str] = {}
 
-        if user_input:
-            self.host = user_input[CONF_HOST]
-            if CONF_AUTH_TOKEN in user_input:
-                self.auth_token = user_input[CONF_AUTH_TOKEN]
-
-            if CONF_SCAN_INTERVAL in user_input:
-                self.scan_interval = user_input[CONF_SCAN_INTERVAL]
-
-            api = CrestronAPI(self.hass, self.host, self.auth_token)
-
+        if user_input is not None:
             try:
-                # Test connection
-                await api.ping()
-                if self.auth_token:
-                    await api.login()
-                initialized = True
-                unique_id = f"crestron_{self.host}"  # Create a unique ID based on host
-
-                # Set a default name for the device
-                self.shade_name_given_by_user = f"Crestron ({self.host})"
-
-                # Create the config entry
-                await self.async_set_unique_id(unique_id)
+                info = await validate_input(self.hass, user_input)
+                await self.async_set_unique_id(f"crestron_{user_input[CONF_HOST]}")
                 self._abort_if_unique_id_configured()
+                return self.async_create_entry(title=info["title"], data=user_input)
+            except ApiAuthError:
+                errors["base"] = "invalid_auth"
+            except (ApiError, Exception):
+                errors["base"] = "cannot_connect"
 
-                return self.async_create_entry(
-                    title=self.shade_name_given_by_user,
-                    data={
-                        CONF_HOST: self.host,
-                        CONF_AUTH_TOKEN: self.auth_token,
-                        CONF_SCAN_INTERVAL: self.scan_interval,
-                    },
-                )
-            except Exception:
-                errors[CONF_HOST] = "cannot_connect"
-
-        # Show user form
         return self.async_show_form(
-            step_id="user",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_HOST): cv.string,
-                    vol.Required(CONF_AUTH_TOKEN): cv.string,
-                    vol.Optional(CONF_SCAN_INTERVAL, default=30): cv.positive_int,
-                },
-            ),
-            errors=errors,
+            step_id="user", data_schema=STEP_USER_DATA_SCHEMA, errors=errors
         )
 
     async def async_step_zeroconf(
         self, discovery_info: zeroconf.ZeroconfServiceInfo
-    ) -> ConfigFlowResult:
+    ) -> FlowResult:
         """Handle zeroconf discovery."""
-
-        LOGGER.debug("Zeroconf discovery_info: %s", discovery_info)
-
-        # Get host from discovery info
-        self.host = discovery_info.host
-        LOGGER.debug("ZeroConf Host: %s", self.host)
-
-        # Create a unique ID and set default name
-        unique_id = f"crestron_{self.host}"
-        self.shade_name_given_by_user = f"Crestron ({self.host})"
+        # Get host from discovery
+        host = discovery_info.host
+        unique_id = f"crestron_{host}"
 
         # Set unique ID
-        LOGGER.debug("ZeroConf Unique_id: %s", unique_id)
         await self.async_set_unique_id(unique_id)
-        self._abort_if_unique_id_configured(updates={CONF_HOST: discovery_info.host})
+        self._abort_if_unique_id_configured(updates={CONF_HOST: host})
 
-        self.context.update(
-            {
-                "title_placeholders": {
-                    "name": f"{self.shade_name_given_by_user}",
-                    "host": self.host
-                },
-                "configuration_url": f"http://{self.host}",
-            }
-        )
+        # Store for the next step
+        self.discovery_info = discovery_info
+        self.context["title_placeholders"] = {"name": f"Crestron ({host})"}
 
-        # Go to confirmation
         return await self.async_step_zeroconf_confirm()
 
     async def async_step_zeroconf_confirm(
-        self, user_input: dict[str, str] | None = None
-    ) -> ConfigFlowResult:
-        """Handle a confirmation flow initiated by zeroconf."""
-        errors = {}
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle a flow initiated by zeroconf."""
+        if not self.discovery_info:
+            return self.async_abort(reason="unknown")
+
+        host = self.discovery_info.host
 
         if user_input is not None:
-            if CONF_AUTH_TOKEN in user_input:
-                self.auth_token = user_input[CONF_AUTH_TOKEN]
-
-            if CONF_SCAN_INTERVAL in user_input:
-                self.scan_interval = user_input[CONF_SCAN_INTERVAL]
-
-            api = CrestronAPI(self.hass, self.host, self.auth_token)
-
             try:
-                # Test connection with auth
-                await api.ping()
-                await api.login()
-
-                return self.async_create_entry(
-                    title=self.shade_name_given_by_user,
-                    data={
-                        CONF_HOST: self.host,
-                        CONF_AUTH_TOKEN: self.auth_token,
-                        CONF_SCAN_INTERVAL: self.scan_interval,
-                    },
+                user_input[CONF_HOST] = host
+                info = await validate_input(self.hass, user_input)
+                return self.async_create_entry(title=info["title"], data=user_input)
+            except ApiAuthError:
+                return self.async_show_form(
+                    step_id="zeroconf_confirm",
+                    data_schema=vol.Schema({
+                        vol.Required(CONF_AUTH_TOKEN): str,
+                        vol.Optional(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL): int,
+                    }),
+                    errors={"base": "invalid_auth"},
+                    description_placeholders={"host": host},
                 )
-            except Exception:
-                errors[CONF_AUTH_TOKEN] = "invalid_auth"
+            except (ApiError, Exception):
+                return self.async_show_form(
+                    step_id="zeroconf_confirm",
+                    data_schema=vol.Schema({
+                        vol.Required(CONF_AUTH_TOKEN): str,
+                        vol.Optional(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL): int,
+                    }),
+                    errors={"base": "cannot_connect"},
+                    description_placeholders={"host": host},
+                )
 
         return self.async_show_form(
             step_id="zeroconf_confirm",
-            description_placeholders={
-                "name": self.shade_name_given_by_user,
-                "host": self.host,
-            },
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_AUTH_TOKEN): cv.string,
-                    vol.Optional(CONF_SCAN_INTERVAL, default=30): cv.positive_int,
-                }
-            ),
-            errors=errors,
+            data_schema=vol.Schema({
+                vol.Required(CONF_AUTH_TOKEN): str,
+                vol.Optional(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL): int,
+            }),
+            description_placeholders={"host": host},
         )
 
+    async def async_step_reauth(self, entry_data: dict[str, Any]) -> FlowResult:
+        """Handle reauth when auth is invalid."""
+        self.entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+        return await self.async_step_reauth_confirm()
+
     async def async_step_reauth_confirm(
-        self, user_input: dict[str, str] | None = None
-    ) -> ConfigFlowResult:
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
         """Handle reauth confirmation."""
         errors = {}
 
-        if user_input is not None:
-            self.auth_token = user_input[CONF_AUTH_TOKEN]
-            entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+        if user_input is not None and self.entry:
+            host = self.entry.data[CONF_HOST]
+            scan_interval = self.entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
 
-            if entry:
-                self.host = entry.data[CONF_HOST]
-                api = CrestronAPI(self.hass, self.host, self.auth_token)
+            try:
+                # Create new data with existing host but new auth token
+                data = {
+                    CONF_HOST: host,
+                    CONF_AUTH_TOKEN: user_input[CONF_AUTH_TOKEN],
+                    CONF_SCAN_INTERVAL: scan_interval
+                }
 
-                try:
-                    # Test connection with new auth token
-                    await api.ping()
-                    await api.login()
+                # Validate
+                await validate_input(self.hass, data)
 
-                    self.hass.config_entries.async_update_entry(
-                        entry,
-                        data={
-                            **entry.data,
-                            CONF_AUTH_TOKEN: self.auth_token
-                        }
-                    )
-                    return self.async_abort(reason="reauth_successful")
-                except Exception:
-                    errors[CONF_AUTH_TOKEN] = "invalid_auth"
+                # Update the config entry
+                self.hass.config_entries.async_update_entry(
+                    self.entry, data=data
+                )
+
+                # Reload the config entry
+                await self.hass.config_entries.async_reload(self.entry.entry_id)
+
+                return self.async_abort(reason="reauth_successful")
+            except ApiAuthError:
+                errors["base"] = "invalid_auth"
+            except (ApiError, Exception):
+                errors["base"] = "cannot_connect"
 
         return self.async_show_form(
             step_id="reauth_confirm",
-            description_placeholders={"host": self.host},
-            data_schema=vol.Schema({vol.Required(CONF_AUTH_TOKEN): cv.string}),
+            data_schema=vol.Schema({vol.Required(CONF_AUTH_TOKEN): str}),
             errors=errors,
+            description_placeholders={"host": self.entry.data.get(CONF_HOST) if self.entry else "unknown"},
         )
 
