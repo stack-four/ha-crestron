@@ -1,0 +1,51 @@
+type: custom:vertical-stack-in-card
+title: Crestron Shades
+cards:
+  - type: entities
+    title: Shades
+    icon: mdi:window-shutter
+    entities:
+      - entity: cover.crestron_shade_1
+        name: Door Shade
+        secondary_info: last-changed
+      - entity: cover.crestron_shade_2
+        name: Window Shade
+        secondary_info: last-changed
+      - entity: cover.crestron_shade_3
+        name: Front Shade
+        secondary_info: last-changed
+  - type: horizontal-stack
+    cards:
+      - type: button
+        icon: mdi:arrow-up-bold-box-outline
+        name: Open All
+        tap_action:
+          action: call-service
+          service: cover.open_cover
+          target:
+            entity_id:
+              - cover.crestron_shade_1
+              - cover.crestron_shade_2
+              - cover.crestron_shade_3
+      - type: button
+        icon: mdi:arrow-down-bold-box-outline
+        name: Close All
+        tap_action:
+          action: call-service
+          service: cover.close_cover
+          target:
+            entity_id:
+              - cover.crestron_shade_1
+              - cover.crestron_shade_2
+              - cover.crestron_shade_3
+      - type: button
+        icon: mdi:stop-circle-outline
+        name: Stop All
+        tap_action:
+          action: call-service
+          service: cover.stop_cover
+          target:
+            entity_id:
+              - cover.crestron_shade_1
+              - cover.crestron_shade_2
+              - cover.crestron_shade_3

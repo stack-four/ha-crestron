@@ -1,0 +1,21 @@
+{
+  "shade": {
+    "default": "mdi:window-shutter",
+    "state": {
+      "open": "mdi:window-shutter-open",
+      "closed": "mdi:window-shutter",
+      "opening": "mdi:window-shutter-alert",
+      "closing": "mdi:window-shutter-alert"
+    }
+  },
+  "status": {
+    "online": "mdi:check-circle-outline",
+    "offline": "mdi:alert-circle-outline"
+  },
+  "actions": {
+    "open": "mdi:arrow-up-bold-box-outline",
+    "close": "mdi:arrow-down-bold-box-outline",
+    "stop": "mdi:stop-circle-outline",
+    "position": "mdi:ray-vertex"
+  }
+}

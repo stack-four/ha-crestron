@@ -1,0 +1,8 @@
+{
+  "domain": "crestron",
+  "name": "Crestron",
+  "documentation": "https://github.com/stack-four/ha-crestron",
+  "iot_class": "local_polling",
+  "logotype": "logo.svg",
+  "icon": "icon.svg"
+}

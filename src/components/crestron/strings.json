@@ -1,0 +1,131 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Crestron",
+        "description": "Enter your Crestron hub information.",
+        "data": {
+          "host": "Host (IP address)",
+          "auth_token": "Authentication Token",
+          "scan_interval": "Scan interval (seconds)"
+        }
+      },
+      "zeroconf_confirm": {
+        "title": "Confirm Crestron device",
+        "description": "Do you want to add the Crestron device at {host} to Home Assistant?",
+        "data": {
+          "auth_token": "Authentication Token",
+          "scan_interval": "Scan interval (seconds)"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate Crestron",
+        "description": "Your Crestron credentials for {host} have become invalid. Please enter a new authentication token.",
+        "data": {
+          "auth_token": "Authentication Token"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the hub. Please check the host and try again.",
+      "invalid_auth": "Invalid authentication token. Please check and try again.",
+      "unknown": "An unexpected error occurred. Please try again."
+    },
+    "abort": {
+      "already_configured": "This Crestron hub is already configured.",
+      "reauth_successful": "Re-authentication was successful.",
+      "reauth_failed_entry_not_found": "Re-authentication request not found."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Configure Crestron",
+        "data": {
+          "scan_interval": "Scan interval (seconds)"
+        }
+      }
+    }
+  },
+  "issues": {
+    "auth_failure": {
+      "title": "Authentication failed",
+      "description": "The authentication token for your Crestron hub is invalid. Please re-authenticate in the integration settings."
+    },
+    "connectivity": {
+      "title": "Connectivity issue",
+      "description": "Cannot connect to your Crestron hub. Please ensure it is powered on and reachable on your network."
+    },
+    "stale_shades": {
+      "title": "Stale shade devices",
+      "description": "Some shade devices have been inactive for a long period. Click fix to reload the integration and clean up stale devices."
+    }
+  },
+  "entity": {
+    "cover": {
+      "shade": {
+        "name": "Shade",
+        "state_attributes": {
+          "position": {
+            "name": "Position"
+          },
+          "connection_status": {
+            "name": "Connection status"
+          },
+          "room_id": {
+            "name": "Room ID"
+          },
+          "room_name": {
+            "name": "Room name"
+          }
+        }
+      }
+    }
+  },
+  "services": {
+    "set_position": {
+      "name": "Set position",
+      "description": "Sets the position of a Crestron shade.",
+      "fields": {
+        "shade_id": {
+          "name": "Shade ID",
+          "description": "The ID of the shade to control."
+        },
+        "position": {
+          "name": "Position",
+          "description": "The position to set the shade to (0-100, 0 is closed, 100 is open)."
+        }
+      }
+    },
+    "open_shade": {
+      "name": "Open shade",
+      "description": "Opens a Crestron shade.",
+      "fields": {
+        "shade_id": {
+          "name": "Shade ID",
+          "description": "The ID of the shade to open."
+        }
+      }
+    },
+    "close_shade": {
+      "name": "Close shade",
+      "description": "Closes a Crestron shade.",
+      "fields": {
+        "shade_id": {
+          "name": "Shade ID",
+          "description": "The ID of the shade to close."
+        }
+      }
+    },
+    "stop_shade": {
+      "name": "Stop shade",
+      "description": "Stops a Crestron shade.",
+      "fields": {
+        "shade_id": {
+          "name": "Shade ID",
+          "description": "The ID of the shade to stop."
+        }
+      }
+    }
+  }
+}

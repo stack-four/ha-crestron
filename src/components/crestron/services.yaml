@@ -1,0 +1,82 @@
+set_position:
+  name: Set position
+  description: Sets the position of a Crestron shade.
+  target:
+    entity:
+      domain: cover
+      integration: crestron
+  fields:
+    shade_id:
+      name: Shade ID
+      description: The ID of the shade to control.
+      required: true
+      selector:
+        number:
+          min: 1
+          step: 1
+          mode: box
+    position:
+      name: Position
+      description: The position to set the shade to (0-100, 0 is closed, 100 is open).
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 1
+          unit_of_measurement: "%"
+          mode: slider
+
+open_shade:
+  name: Open shade
+  description: Opens a Crestron shade.
+  target:
+    entity:
+      domain: cover
+      integration: crestron
+  fields:
+    shade_id:
+      name: Shade ID
+      description: The ID of the shade to open.
+      required: true
+      selector:
+        number:
+          min: 1
+          step: 1
+          mode: box
+
+close_shade:
+  name: Close shade
+  description: Closes a Crestron shade.
+  target:
+    entity:
+      domain: cover
+      integration: crestron
+  fields:
+    shade_id:
+      name: Shade ID
+      description: The ID of the shade to close.
+      required: true
+      selector:
+        number:
+          min: 1
+          step: 1
+          mode: box
+
+stop_shade:
+  name: Stop shade
+  description: Stops a Crestron shade.
+  target:
+    entity:
+      domain: cover
+      integration: crestron
+  fields:
+    shade_id:
+      name: Shade ID
+      description: The ID of the shade to stop.
+      required: true
+      selector:
+        number:
+          min: 1
+          step: 1
+          mode: box
