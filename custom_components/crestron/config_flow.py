@@ -1,4 +1,4 @@
-"""Config flow for ROMY integration."""
+"""Config flow for Crestron integration."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ import homeassistant.helpers.config_validation as cv
 from .const import DOMAIN, LOGGER
 
 
-class RomyConfigFlow(ConfigFlow, domain=DOMAIN):
+class CrestronConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle config flow for Crestron shade."""
 
     VERSION = 1

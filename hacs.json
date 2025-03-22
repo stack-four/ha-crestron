@@ -1,0 +1,7 @@
+{
+  "name": "Crestron",
+  "content_in_root": false,
+  "filename": "custom_components/crestron/__init__.py",
+  "render_readme": true,
+  "iot_class": "local_polling"
+}
