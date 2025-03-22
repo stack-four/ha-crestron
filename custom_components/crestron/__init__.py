@@ -38,7 +38,6 @@ from .repairs import (
     ISSUE_AUTH_FAILURE,
     ISSUE_CONNECTIVITY,
     async_create_issue,
-    register_repair_flows,
 )
 
 PLATFORMS = [Platform.COVER]
@@ -64,9 +63,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the Crestron integration."""
     hass.data[DOMAIN] = {}
 
-    # Register repair flows
-    register_repair_flows(hass)
-
+    # Initialize the domain data
     return True
 
 
@@ -162,7 +159,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             await api.ping()
             await api.login()
         except ApiAuthError as err:
-            # Create an issue for the user
+            # Log auth failure
             async_create_issue(
                 hass=hass,
                 issue_id=ISSUE_AUTH_FAILURE,
@@ -171,7 +168,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
             raise ConfigEntryAuthFailed("Authentication failed") from err
         except (ApiError, asyncio.TimeoutError, aiohttp.ClientError) as err:
-            # Create an issue for the user
+            # Log connectivity issue
             async_create_issue(
                 hass=hass,
                 issue_id=ISSUE_CONNECTIVITY,

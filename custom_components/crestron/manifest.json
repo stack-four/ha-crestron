@@ -19,9 +19,5 @@
     "crestron"
   ],
   "integration_type": "device",
-  "quality_scale": "platinum",
-  "version": "1.0.0",
-  "after_dependencies": [
-    "http"
-  ]
+  "version": "1.0.0"
 }
