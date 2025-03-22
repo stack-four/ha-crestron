@@ -268,37 +268,46 @@ class CrestronAPI:
         except (ValueError, Exception) as err:
             raise ApiError(f"Error connecting to API: {err}") from err
 
-    async def open_shade(self, shade_id: int, shade_name: str = "", room_id: int = 0) -> bool:
+    async def set_position(self, shade_id: int, position: int) -> bool:
+        """Set the position of a shade."""
+        await self.login()
+        shade = await self.get_shade(shade_id)
+        if not shade:
+            _LOGGER.error("Shade %s not found", shade_id)
+            return False
+
+        shade.position = position
+        return await self.set_shades_state([shade])
+
+    async def open_shade(self, shade_id: int) -> bool:
         """Open a shade."""
-        shade = ShadeState(
-            position=OPEN_VALUE,
-            id=shade_id,
-            name=shade_name,
-            roomId=room_id,
-        )
-        return await self.set_shades_state([shade])
+        return await self.set_position(shade_id, OPEN_VALUE)
 
-    async def close_shade(self, shade_id: int, shade_name: str = "", room_id: int = 0) -> bool:
+    async def close_shade(self, shade_id: int) -> bool:
         """Close a shade."""
-        shade = ShadeState(
-            position=CLOSED_VALUE,
-            id=shade_id,
-            name=shade_name,
-            roomId=room_id,
-        )
-        return await self.set_shades_state([shade])
+        return await self.set_position(shade_id, CLOSED_VALUE)
 
-    async def set_shade_position(
-        self, shade_id: int, position: int, shade_name: str = "", room_id: int = 0
-    ) -> bool:
-        """Set shade position."""
-        shade = ShadeState(
-            position=position,
-            id=shade_id,
-            name=shade_name,
-            roomId=room_id,
-        )
-        return await self.set_shades_state([shade])
+    async def stop_shade(self, shade_id: int) -> bool:
+        """Stop a shade."""
+        await self.login()
+        try:
+            response = await self._session.post(
+                f"{self._base_url}/shades/{shade_id}/stop",
+                headers={API_AUTH_KEY_HEADER: self._auth_key},
+                raise_for_status=True,
+            )
+            return True
+        except aiohttp.ClientResponseError as err:
+            if err.status == 401:
+                self._auth_key = None
+                raise ApiAuthError("Invalid auth key") from err
+            raise ApiError(f"Error stopping shade {shade_id}: {err}") from err
+        except aiohttp.ClientError as err:
+            raise ApiConnectionError(f"Error connecting to API: {err}") from err
+        except asyncio.TimeoutError as err:
+            raise ApiTimeoutError(f"Timeout connecting to API: {err}") from err
+        except (ValueError, Exception) as err:
+            raise ApiError(f"Error stopping shade {shade_id}: {err}") from err
 
     def has_shade(self, shade_id: int) -> bool:
         """Check if a shade exists."""
