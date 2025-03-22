@@ -4,10 +4,9 @@ from __future__ import annotations
 import asyncio
 from datetime import timedelta
 from typing import Any, Dict
-
-import aiohttp
-import voluptuous as vol
 import logging
+
+import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
@@ -22,9 +21,7 @@ from homeassistant.helpers import (
     device_registry as dr,
 )
 from homeassistant.helpers.typing import ConfigType
-from homeassistant.helpers.update_coordinator import UpdateFailed
 
-from .api import ApiAuthError, ApiError, CrestronAPI
 from .const import (
     ATTR_POSITION,
     ATTR_SHADE_ID,
@@ -37,7 +34,6 @@ from .const import (
     SERVICE_STOP_SHADE,
     _LOGGER,
 )
-from .coordinator import CrestronCoordinator
 from .repairs import (
     ISSUE_AUTH_FAILURE,
     ISSUE_CONNECTIVITY,
@@ -147,6 +143,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         host = entry.data[CONF_HOST]
         auth_token = entry.data[CONF_AUTH_TOKEN]
         scan_interval = entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+
+        # Import API client here to avoid blocking at module load time
+        import aiohttp
+        from .api import CrestronAPI, ApiAuthError, ApiError
+        from .coordinator import CrestronCoordinator
+        from homeassistant.helpers.update_coordinator import UpdateFailed
 
         # Create API client
         api = CrestronAPI(

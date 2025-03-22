@@ -3,19 +3,18 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 import voluptuous as vol
 
 from homeassistant import config_entries
-from homeassistant.components import zeroconf
+from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
 from homeassistant.const import CONF_HOST
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
 import homeassistant.helpers.config_validation as cv
 
 from .const import CONF_AUTH_TOKEN, CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL, DOMAIN
-from .api import CrestronAPI, ApiAuthError, ApiError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -30,6 +29,9 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 
 async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, Any]:
     """Validate the user input allows us to connect."""
+    # Import here to avoid blocking at module load time
+    from .api import CrestronAPI, ApiAuthError, ApiError
+
     api = CrestronAPI(
         hass=hass,
         host=data[CONF_HOST],
@@ -43,7 +45,7 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     return {"title": f"Crestron ({data[CONF_HOST]})"}
 
 
-class CrestronConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+class CrestronConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Crestron."""
 
     VERSION = 1
@@ -51,11 +53,15 @@ class CrestronConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def __init__(self) -> None:
         """Initialize the config flow."""
         self.discovery_info = None
+        self.entry: ConfigEntry | None = None
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle the initial step."""
+        # Import here to avoid blocking at module load time
+        from .api import ApiAuthError, ApiError
+
         errors: dict[str, str] = {}
 
         if user_input is not None:
@@ -74,11 +80,11 @@ class CrestronConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def async_step_zeroconf(
-        self, discovery_info: zeroconf.ZeroconfServiceInfo
+        self, discovery_info: dict[str, Any]
     ) -> FlowResult:
         """Handle zeroconf discovery."""
         # Get host from discovery
-        host = discovery_info.host
+        host = discovery_info.get("host", "")
         unique_id = f"crestron_{host}"
 
         # Set unique ID
@@ -95,10 +101,13 @@ class CrestronConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle a flow initiated by zeroconf."""
+        # Import here to avoid blocking at module load time
+        from .api import ApiAuthError, ApiError
+
         if not self.discovery_info:
             return self.async_abort(reason="unknown")
 
-        host = self.discovery_info.host
+        host = self.discovery_info.get("host", "")
 
         if user_input is not None:
             try:
@@ -144,6 +153,9 @@ class CrestronConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle reauth confirmation."""
+        # Import here to avoid blocking at module load time
+        from .api import ApiAuthError, ApiError
+
         errors = {}
 
         if user_input is not None and self.entry:
@@ -180,5 +192,43 @@ class CrestronConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema({vol.Required(CONF_AUTH_TOKEN): str}),
             errors=errors,
             description_placeholders={"host": self.entry.data.get(CONF_HOST) if self.entry else "unknown"},
+        )
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
+        """Create the options flow."""
+        return CrestronOptionsFlow(config_entry)
+
+
+class CrestronOptionsFlow(OptionsFlow):
+    """Handle Crestron options."""
+
+    def __init__(self, config_entry: ConfigEntry) -> None:
+        """Initialize options flow."""
+        self.config_entry = config_entry
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Manage the options."""
+        errors: dict[str, str] = {}
+        options = self.config_entry.options
+        data = self.config_entry.data
+
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+
+        options_schema = vol.Schema(
+            {
+                vol.Optional(
+                    CONF_SCAN_INTERVAL,
+                    default=options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
+                ): int,
+            }
+        )
+
+        return self.async_show_form(
+            step_id="init", data_schema=options_schema, errors=errors
         )
 

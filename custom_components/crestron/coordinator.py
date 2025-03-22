@@ -11,11 +11,16 @@ import async_timeout
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.components.cover import ATTR_POSITION, CoverEntityFeature
 
 from .api import ApiAuthError, ApiError, CrestronAPI
 from .const import DOMAIN, UPDATE_INTERVAL
 
 _LOGGER = logging.getLogger(__name__)
+
+# Position values
+OPEN_VALUE = 100
+CLOSED_VALUE = 0
 
 
 class CrestronCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
@@ -70,15 +75,14 @@ class CrestronCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
             _LOGGER.error("Shade %s not found", shade_id)
             return False
 
-        result = await self.api.open_shade(
-            shade_id=shade_id,
-            shade_name=shade.name,
-            room_id=shade.roomId,
-        )
+        result = await self.api.open_shade(shade_id)
 
         if result:
-            # Update local state
-            shade.position = OPEN_VALUE
+            # Update local state if the shade object has a position attribute
+            if hasattr(shade, "position"):
+                shade.position = OPEN_VALUE
+            elif isinstance(shade, dict) and "position" in shade:
+                shade["position"] = OPEN_VALUE
 
             # Request a refresh to get the latest state
             await self.async_request_refresh()
@@ -92,15 +96,14 @@ class CrestronCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
             _LOGGER.error("Shade %s not found", shade_id)
             return False
 
-        result = await self.api.close_shade(
-            shade_id=shade_id,
-            shade_name=shade.name,
-            room_id=shade.roomId,
-        )
+        result = await self.api.close_shade(shade_id)
 
         if result:
-            # Update local state
-            shade.position = CLOSED_VALUE
+            # Update local state if the shade object has a position attribute
+            if hasattr(shade, "position"):
+                shade.position = CLOSED_VALUE
+            elif isinstance(shade, dict) and "position" in shade:
+                shade["position"] = CLOSED_VALUE
 
             # Request a refresh to get the latest state
             await self.async_request_refresh()
@@ -114,17 +117,30 @@ class CrestronCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
             _LOGGER.error("Shade %s not found", shade_id)
             return False
 
-        result = await self.api.set_shade_position(
-            shade_id=shade_id,
-            position=position,
-            shade_name=shade.name,
-            room_id=shade.roomId,
-        )
+        result = await self.api.set_position(shade_id, position)
 
         if result:
-            # Update local state
-            shade.position = position
+            # Update local state if the shade object has a position attribute
+            if hasattr(shade, "position"):
+                shade.position = position
+            elif isinstance(shade, dict) and "position" in shade:
+                shade["position"] = position
 
+            # Request a refresh to get the latest state
+            await self.async_request_refresh()
+
+        return result
+
+    async def stop_shade(self, shade_id: int) -> bool:
+        """Stop a shade."""
+        shade = self._shades.get(shade_id)
+        if not shade:
+            _LOGGER.error("Shade %s not found", shade_id)
+            return False
+
+        result = await self.api.stop_shade(shade_id)
+
+        if result:
             # Request a refresh to get the latest state
             await self.async_request_refresh()
 

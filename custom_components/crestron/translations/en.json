@@ -47,6 +47,56 @@
       }
     }
   },
+  "issues": {
+    "auth_failure": {
+      "title": "Crestron Authentication Error",
+      "description": "The authentication token for your Crestron hub at {host} is no longer valid. Please update your credentials.",
+      "fix_flow": {
+        "step": {
+          "init": {
+            "title": "Fix Authentication Issue",
+            "description": "The Crestron integration is having {issue} issues. Do you want to reconfigure your authentication credentials?"
+          },
+          "confirm": {
+            "title": "Reconfigure Authentication",
+            "description": "We'll guide you through the process of updating your {integration_name} authentication credentials."
+          }
+        }
+      }
+    },
+    "connectivity": {
+      "title": "Crestron Connectivity Error",
+      "description": "The Crestron hub at {host} cannot be reached. Please check that the device is powered on and connected to your network.",
+      "fix_flow": {
+        "step": {
+          "init": {
+            "title": "Fix Connectivity Issue",
+            "description": "The Crestron integration is having {issue} issues. Do you want to try reconnecting?"
+          },
+          "confirm": {
+            "title": "Reconnect",
+            "description": "We'll attempt to reconnect to your {integration_name} hub. Make sure the device is powered on and connected to your network."
+          }
+        }
+      }
+    },
+    "stale_shades": {
+      "title": "Crestron Stale Shade Data",
+      "description": "The shades data from your Crestron hub at {host} is stale. Typically this means the hub has been rebooted or is experiencing issues.",
+      "fix_flow": {
+        "step": {
+          "init": {
+            "title": "Fix Stale Data Issue",
+            "description": "The Crestron integration is having {issue} issues. Do you want to try refreshing the data?"
+          },
+          "confirm": {
+            "title": "Refresh Data",
+            "description": "We'll attempt to refresh the data from your {integration_name} hub. This will reload the integration."
+          }
+        }
+      }
+    }
+  },
   "entity": {
     "cover": {
       "shade": {
