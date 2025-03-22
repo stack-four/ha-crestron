@@ -1,0 +1,71 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Crestron",
+        "description": "Enter your Crestron hub information.",
+        "data": {
+          "host": "Host (IP address)",
+          "auth_token": "Authentication Token",
+          "scan_interval": "Scan interval (seconds)"
+        }
+      },
+      "zeroconf_confirm": {
+        "title": "Confirm Crestron device",
+        "description": "Do you want to add the Crestron device at {host} to Home Assistant?",
+        "data": {
+          "auth_token": "Authentication Token",
+          "scan_interval": "Scan interval (seconds)"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate Crestron",
+        "description": "Your Crestron credentials for {host} have become invalid. Please enter a new authentication token.",
+        "data": {
+          "auth_token": "Authentication Token"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the hub. Please check the host and try again.",
+      "invalid_auth": "Invalid authentication token. Please check and try again.",
+      "unknown": "An unexpected error occurred. Please try again."
+    },
+    "abort": {
+      "already_configured": "This Crestron hub is already configured.",
+      "reauth_successful": "Re-authentication was successful.",
+      "reauth_failed_entry_not_found": "Re-authentication request not found."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Configure Crestron",
+        "data": {
+          "scan_interval": "Scan interval (seconds)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "cover": {
+      "shade": {
+        "name": "Shade",
+        "state_attributes": {
+          "position": {
+            "name": "Position"
+          },
+          "connection_status": {
+            "name": "Connection status"
+          },
+          "room_id": {
+            "name": "Room ID"
+          },
+          "room_name": {
+            "name": "Room name"
+          }
+        }
+      }
+    }
+  }
+}
