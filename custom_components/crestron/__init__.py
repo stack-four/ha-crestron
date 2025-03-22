@@ -139,7 +139,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Get configuration
         host = entry.data[CONF_HOST]
         auth_token = entry.data[CONF_AUTH_TOKEN]
-        scan_interval = entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+
+        # Merge options with data for backwards compatibility
+        entry_options = dict(entry.options)
 
         # Import API client here to avoid blocking at module load time
         import aiohttp
@@ -157,31 +159,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Verify that we can connect
         try:
             await api.ping()
-            await api.login()
         except ApiAuthError as err:
-            # Log auth failure
-            async_create_issue(
-                hass=hass,
-                issue_id=ISSUE_AUTH_FAILURE,
-                entry=entry,
-                description_placeholders={"host": host},
-            )
+            _LOGGER.error("Authentication failed: %s", err)
             raise ConfigEntryAuthFailed("Authentication failed") from err
         except (ApiError, asyncio.TimeoutError, aiohttp.ClientError) as err:
-            # Log connectivity issue
-            async_create_issue(
-                hass=hass,
-                issue_id=ISSUE_CONNECTIVITY,
-                entry=entry,
-                description_placeholders={"host": host},
-            )
+            _LOGGER.error("Failed to connect to %s: %s", host, err)
             raise ConfigEntryNotReady(f"Failed to connect to {host}") from err
 
         # Create update coordinator
-        coordinator = CrestronCoordinator(hass, api)
+        coordinator = CrestronCoordinator(hass, api, entry_options)
 
         # Initial data fetch
-        await coordinator.async_config_entry_first_refresh()
+        try:
+            await coordinator.async_config_entry_first_refresh()
+        except (ApiError, asyncio.TimeoutError, aiohttp.ClientError) as err:
+            _LOGGER.error("Failed to fetch initial data from %s: %s", host, err)
+            raise ConfigEntryNotReady(f"Failed to fetch initial data from {host}") from err
 
         # Store coordinator
         hass.data[DOMAIN][entry.entry_id] = coordinator
@@ -189,8 +182,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Set up platforms
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-        # Register services
-        register_services(hass)
+        # Register services if not already registered
+        if len(hass.data[DOMAIN]) == 1:  # First entry
+            register_services(hass)
 
         return True
 

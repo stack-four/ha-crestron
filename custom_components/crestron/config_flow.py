@@ -39,7 +39,6 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     )
 
     await api.ping()
-    await api.login()
 
     # Return validated data
     return {"title": f"Crestron ({data[CONF_HOST]})"}
@@ -206,15 +205,15 @@ class CrestronOptionsFlow(OptionsFlow):
 
     def __init__(self, config_entry: ConfigEntry) -> None:
         """Initialize options flow."""
-        self.config_entry = config_entry
+        self.entry_id = config_entry.entry_id
+        self.entry_data = dict(config_entry.data)
+        self.entry_options = dict(config_entry.options)
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Manage the options."""
         errors: dict[str, str] = {}
-        options = self.config_entry.options
-        data = self.config_entry.data
 
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
@@ -223,7 +222,7 @@ class CrestronOptionsFlow(OptionsFlow):
             {
                 vol.Optional(
                     CONF_SCAN_INTERVAL,
-                    default=options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
+                    default=self.entry_options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
                 ): int,
             }
         )
