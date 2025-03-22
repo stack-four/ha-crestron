@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable
+from typing import Any
 
 from homeassistant.components.cover import (
     ATTR_POSITION,
@@ -12,11 +12,12 @@ from homeassistant.components.cover import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, MANUFACTURER
+from .const import CONF_HOST, CONF_PORT, DOMAIN, MANUFACTURER
 from .coordinator import CrestronCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -36,10 +37,33 @@ async def async_setup_entry(
     """Set up Crestron cover devices."""
     coordinator = hass.data[DOMAIN][entry.entry_id]
 
+    # Create hub device with consistent identifier
+    host = entry.data[CONF_HOST]
+    port = entry.data.get(CONF_PORT, "")
+    hub_identifier = f"{host}"
+    if port:
+        hub_identifier = f"{host}:{port}"
+
+    device_registry = dr.async_get(hass)
+    hub_device = device_registry.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, hub_identifier)},
+        manufacturer=MANUFACTURER,
+        name=f"Crestron Controller ({host})",
+        model="Crestron Shade Controller",
+    )
+
     # Get all shades from the coordinator
     entities = []
     for shade_id, shade_data in coordinator.shades.items():
-        entities.append(CrestronShade(coordinator, shade_id, shade_data))
+        entities.append(
+            CrestronShade(
+                coordinator,
+                shade_id,
+                shade_data,
+                hub_device_id=hub_identifier
+            )
+        )
 
     if entities:
         async_add_entities(entities)
@@ -55,7 +79,11 @@ class CrestronShade(CoordinatorEntity, CoverEntity):
     _attr_supported_features = SUPPORT_CRESTRON_SHADE
 
     def __init__(
-        self, coordinator: CrestronCoordinator, shade_id: int, shade_data: dict[str, Any]
+        self,
+        coordinator: CrestronCoordinator,
+        shade_id: int,
+        shade_data: dict[str, Any],
+        hub_device_id: str,
     ) -> None:
         """Initialize the shade."""
         super().__init__(coordinator)
@@ -63,6 +91,7 @@ class CrestronShade(CoordinatorEntity, CoverEntity):
         # Store shade details
         self._shade_id = shade_id
         self._shade_data = shade_data
+        self._hub_device_id = hub_device_id
 
         # Set entity attributes
         self._attr_unique_id = f"crestron_shade_{shade_id}"
@@ -74,8 +103,7 @@ class CrestronShade(CoordinatorEntity, CoverEntity):
             manufacturer=MANUFACTURER,
             model="Crestron Shade",
             name=self._attr_name,
-            sw_version="1.0",
-            via_device=(DOMAIN, coordinator.unique_id),
+            via_device=(DOMAIN, self._hub_device_id),
         )
 
         # Update state
