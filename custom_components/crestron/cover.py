@@ -40,6 +40,14 @@ async def async_setup_entry(
     # Get the host from entry data
     host = entry.data[CONF_HOST]
 
+    # Get port if available
+    port = entry.data.get(CONF_PORT, "")
+
+    # Build a consistent hub identifier
+    hub_id = f"crestron_{host}"
+    if port:
+        hub_id = f"crestron_{host}:{port}"
+
     # Create the hub device registry
     device_registry = dr.async_get(hass)
 
@@ -61,7 +69,7 @@ async def async_setup_entry(
 
     # If no existing hub ID found, create one with consistent format
     if not existing_hub_id:
-        existing_hub_id = f"crestron_{host}"
+        existing_hub_id = hub_id
 
     # Create or update the hub device with the correct identifier
     hub_device = device_registry.async_get_or_create(

@@ -36,11 +36,6 @@ from .const import (
     SERVICE_STOP_SHADE,
     _LOGGER,
 )
-from .repairs import (
-    ISSUE_AUTH_FAILURE,
-    ISSUE_CONNECTIVITY,
-    async_create_issue,
-)
 
 PLATFORMS = [Platform.COVER]
 
@@ -171,12 +166,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Create the hub device with the correct identifier format
         device_registry = dr.async_get(hass)
 
+        # Get port if available and build consistent hub identifier
+        port = entry.data.get(CONF_PORT, "")
+        hub_id = f"crestron_{host}"
+        if port:
+            hub_id = f"crestron_{host}:{port}"
+
         # Check for existing hub device with our format
         existing_hub_id = None
         for device in device_registry.devices.values():
             if any(identifier[0] == DOMAIN and
-                   (identifier[1] == f"crestron_{host}" or
-                    identifier[1].startswith(f"crestron_{host}:"))
+                   (identifier[1] == hub_id or
+                    identifier[1].startswith(f"crestron_{host}"))
                    for identifier in device.identifiers):
                 # Found existing hub with correct format
                 existing_hub_id = next(identifier[1] for identifier in device.identifiers
@@ -186,7 +187,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         # If no existing hub found, use the consistent format
         if not existing_hub_id:
-            existing_hub_id = f"crestron_{host}"
+            existing_hub_id = hub_id
 
         # Create or update the hub device
         device_registry.async_get_or_create(

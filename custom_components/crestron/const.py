@@ -10,6 +10,7 @@ MANUFACTURER: Final = "Crestron"
 
 # Config flow constants
 CONF_HOST: Final = "host"
+CONF_PORT: Final = "port"
 CONF_AUTH_TOKEN: Final = "auth_token"
 CONF_SCAN_INTERVAL: Final = "scan_interval"
 
