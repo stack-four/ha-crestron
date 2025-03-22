@@ -26,8 +26,10 @@ from .const import (
     ATTR_POSITION,
     ATTR_SHADE_ID,
     CONF_AUTH_TOKEN,
+    CONF_PORT,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    MANUFACTURER,
     SERVICE_CLOSE_SHADE,
     SERVICE_OPEN_SHADE,
     SERVICE_SET_POSITION,
@@ -165,6 +167,35 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         except (ApiError, asyncio.TimeoutError, aiohttp.ClientError) as err:
             _LOGGER.error("Failed to connect to %s: %s", host, err)
             raise ConfigEntryNotReady(f"Failed to connect to {host}") from err
+
+        # Create the hub device with the correct identifier format
+        device_registry = dr.async_get(hass)
+
+        # Check for existing hub device with our format
+        existing_hub_id = None
+        for device in device_registry.devices.values():
+            if any(identifier[0] == DOMAIN and
+                   (identifier[1] == f"crestron_{host}" or
+                    identifier[1].startswith(f"crestron_{host}:"))
+                   for identifier in device.identifiers):
+                # Found existing hub with correct format
+                existing_hub_id = next(identifier[1] for identifier in device.identifiers
+                                     if identifier[0] == DOMAIN)
+                _LOGGER.debug("Found existing hub device with ID: %s", existing_hub_id)
+                break
+
+        # If no existing hub found, use the consistent format
+        if not existing_hub_id:
+            existing_hub_id = f"crestron_{host}"
+
+        # Create or update the hub device
+        device_registry.async_get_or_create(
+            config_entry_id=entry.entry_id,
+            identifiers={(DOMAIN, existing_hub_id)},
+            manufacturer=MANUFACTURER,
+            name=f"Crestron Controller ({host})",
+            model="Crestron Shade Controller",
+        )
 
         # Create update coordinator
         coordinator = CrestronCoordinator(hass, api, entry_options)
