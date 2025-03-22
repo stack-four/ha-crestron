@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import asyncio
 from datetime import timedelta
-import logging
 from typing import Any, Dict
 
 import aiohttp
@@ -72,6 +71,72 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     register_repair_flows(hass)
 
     return True
+
+
+def register_services(hass: HomeAssistant) -> None:
+    """Register Crestron services."""
+
+    async def set_position(call: ServiceCall) -> None:
+        """Set shade position."""
+        shade_id = call.data[ATTR_SHADE_ID]
+        position = call.data[ATTR_POSITION]
+
+        # Find coordinator that contains this shade
+        for entry_id, coordinator in hass.data[DOMAIN].items():
+            if coordinator.api.has_shade(shade_id):
+                await coordinator.api.set_position(shade_id, position)
+                return
+
+        _LOGGER.error("Could not find shade with ID %s", shade_id)
+
+    async def open_shade(call: ServiceCall) -> None:
+        """Open shade."""
+        shade_id = call.data[ATTR_SHADE_ID]
+
+        # Find coordinator that contains this shade
+        for entry_id, coordinator in hass.data[DOMAIN].items():
+            if coordinator.api.has_shade(shade_id):
+                await coordinator.api.open_shade(shade_id)
+                return
+
+        _LOGGER.error("Could not find shade with ID %s", shade_id)
+
+    async def close_shade(call: ServiceCall) -> None:
+        """Close shade."""
+        shade_id = call.data[ATTR_SHADE_ID]
+
+        # Find coordinator that contains this shade
+        for entry_id, coordinator in hass.data[DOMAIN].items():
+            if coordinator.api.has_shade(shade_id):
+                await coordinator.api.close_shade(shade_id)
+                return
+
+        _LOGGER.error("Could not find shade with ID %s", shade_id)
+
+    async def stop_shade(call: ServiceCall) -> None:
+        """Stop shade."""
+        shade_id = call.data[ATTR_SHADE_ID]
+
+        # Find coordinator that contains this shade
+        for entry_id, coordinator in hass.data[DOMAIN].items():
+            if coordinator.api.has_shade(shade_id):
+                await coordinator.api.stop_shade(shade_id)
+                return
+
+        _LOGGER.error("Could not find shade with ID %s", shade_id)
+
+    hass.services.async_register(
+        DOMAIN, SERVICE_SET_POSITION, set_position, schema=SET_POSITION_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_OPEN_SHADE, open_shade, schema=SHADE_ID_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_CLOSE_SHADE, close_shade, schema=SHADE_ID_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_STOP_SHADE, stop_shade, schema=SHADE_ID_SCHEMA
+    )
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -152,86 +217,3 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     hass.services.async_remove(DOMAIN, service)
 
     return unload_ok
-
-
-def register_services(hass: HomeAssistant) -> None:
-    """Register integration services."""
-
-    async def async_set_position(call: ServiceCall) -> None:
-        """Service to set shade position."""
-        shade_id = call.data[ATTR_SHADE_ID]
-        position = call.data[ATTR_POSITION]
-
-        # Find coordinator with this shade
-        for coordinator in hass.data[DOMAIN].values():
-            coordinator: CrestronCoordinator
-            if shade_id in coordinator.shades:
-                # Convert from 0-100 to 0-65535
-                raw_position = int(position / 100 * 65535)
-                await coordinator.set_shade_position(shade_id, raw_position)
-                return
-
-        _LOGGER.error("Shade %s not found", shade_id)
-
-    async def async_open_shade(call: ServiceCall) -> None:
-        """Service to open shade."""
-        shade_id = call.data[ATTR_SHADE_ID]
-
-        # Find coordinator with this shade
-        for coordinator in hass.data[DOMAIN].values():
-            coordinator: CrestronCoordinator
-            if shade_id in coordinator.shades:
-                await coordinator.open_shade(shade_id)
-                return
-
-        _LOGGER.error("Shade %s not found", shade_id)
-
-    async def async_close_shade(call: ServiceCall) -> None:
-        """Service to close shade."""
-        shade_id = call.data[ATTR_SHADE_ID]
-
-        # Find coordinator with this shade
-        for coordinator in hass.data[DOMAIN].values():
-            coordinator: CrestronCoordinator
-            if shade_id in coordinator.shades:
-                await coordinator.close_shade(shade_id)
-                return
-
-        _LOGGER.error("Shade %s not found", shade_id)
-
-    async def async_stop_shade(call: ServiceCall) -> None:
-        """Service to stop shade."""
-        shade_id = call.data[ATTR_SHADE_ID]
-
-        # Find coordinator with this shade
-        for coordinator in hass.data[DOMAIN].values():
-            coordinator: CrestronCoordinator
-            if shade_id in coordinator.shades:
-                # For now, we'll just set it to the current position to stop it
-                shade = coordinator.shades.get(shade_id)
-                if shade:
-                    await coordinator.set_shade_position(shade_id, shade.position)
-                return
-
-        _LOGGER.error("Shade %s not found", shade_id)
-
-    # Register services if they don't already exist
-    if not hass.services.has_service(DOMAIN, SERVICE_SET_POSITION):
-        hass.services.async_register(
-            DOMAIN, SERVICE_SET_POSITION, async_set_position, schema=SET_POSITION_SCHEMA
-        )
-
-    if not hass.services.has_service(DOMAIN, SERVICE_OPEN_SHADE):
-        hass.services.async_register(
-            DOMAIN, SERVICE_OPEN_SHADE, async_open_shade, schema=SHADE_ID_SCHEMA
-        )
-
-    if not hass.services.has_service(DOMAIN, SERVICE_CLOSE_SHADE):
-        hass.services.async_register(
-            DOMAIN, SERVICE_CLOSE_SHADE, async_close_shade, schema=SHADE_ID_SCHEMA
-        )
-
-    if not hass.services.has_service(DOMAIN, SERVICE_STOP_SHADE):
-        hass.services.async_register(
-            DOMAIN, SERVICE_STOP_SHADE, async_stop_shade, schema=SHADE_ID_SCHEMA
-        )

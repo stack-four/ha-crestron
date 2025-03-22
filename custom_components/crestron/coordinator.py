@@ -12,7 +12,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .api import ApiAuthError, ApiError, CrestronAPI, ShadeState
+from .api import ApiAuthError, ApiError, CrestronAPI
 from .const import DOMAIN, UPDATE_INTERVAL
 
 _LOGGER = logging.getLogger(__name__)
@@ -30,18 +30,12 @@ class CrestronCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
             update_interval=UPDATE_INTERVAL,
         )
         self.api = api
-        self._shades: Dict[int, ShadeState] = {}
-        self._devices: Dict[int, Dict[str, Any]] = {}
+        self._shades: Dict[int, Dict[str, Any]] = {}
 
     @property
-    def shades(self) -> Dict[int, ShadeState]:
+    def shades(self) -> Dict[int, Dict[str, Any]]:
         """Return cached shades."""
         return self._shades
-
-    @property
-    def devices(self) -> Dict[int, Dict[str, Any]]:
-        """Return cached devices."""
-        return self._devices
 
     @property
     def unique_id(self) -> str:
@@ -52,17 +46,12 @@ class CrestronCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
         """Fetch data from API endpoint."""
         try:
             async with async_timeout.timeout(30):
-                # First fetch devices
-                all_devices = await self.api.get_devices()
-                self._devices = {device["id"]: device for device in all_devices}
+                # Fetch shades
+                shades = await self.api.get_shades()
+                self._shades = shades
 
-                # Then fetch shades
-                all_shades = await self.api.get_shades()
-                self._shades = {shade.id: shade for shade in all_shades}
-
-                # Return combined data
+                # Return data
                 return {
-                    "devices": self._devices,
                     "shades": self._shades,
                 }
         except ApiAuthError as err:

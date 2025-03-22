@@ -18,7 +18,6 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .api import CLOSED_VALUE, OPEN_VALUE, ShadeState
 from .const import DOMAIN, _LOGGER
 from .coordinator import CrestronCoordinator
 from .entity import CrestronEntity
@@ -67,117 +66,84 @@ async def async_setup_entry(
 class CrestronShade(CrestronEntity, CoverEntity):
     """Representation of a Crestron shade."""
 
+    _attr_device_class = CoverDeviceClass.SHADE
     _attr_supported_features = (
         CoverEntityFeature.OPEN
         | CoverEntityFeature.CLOSE
         | CoverEntityFeature.STOP
         | CoverEntityFeature.SET_POSITION
     )
-    _attr_device_class = CoverDeviceClass.SHADE
-    _attr_name = None
 
     def __init__(self, coordinator: CrestronCoordinator, shade_id: int) -> None:
         """Initialize the shade."""
         super().__init__(coordinator, shade_id)
-        # Keep track of last position to determine if we're opening/closing
-        self._last_position = self.current_cover_position
-        # Set initial icon
-        self._attr_icon = ICONS.get("shade", {}).get("default", "mdi:window-shutter")
 
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        """Handle updated data from the coordinator."""
-        shade = self.shade
-        if shade is None:
-            self._attr_available = False
-            return
+        shade = coordinator.shades.get(shade_id, {})
+        self._attr_name = shade.get("name", f"Shade {shade_id}")
+        self._attr_unique_id = f"crestron_shade_{shade_id}"
 
-        # Update last position for opening/closing determination
-        self._last_position = self.current_cover_position
+    @property
+    def icon(self) -> str:
+        """Return the icon to use in the frontend."""
+        # Get shade state
+        position = self.current_cover_position or 0
 
-        # Update icon based on state
-        if self.is_closed:
-            self._attr_icon = ICONS.get("shade", {}).get("state", {}).get(
-                "closed", "mdi:window-shutter"
-            )
-        elif self.is_opening:
-            self._attr_icon = ICONS.get("shade", {}).get("state", {}).get(
-                "opening", "mdi:window-shutter-alert"
-            )
-        elif self.is_closing:
-            self._attr_icon = ICONS.get("shade", {}).get("state", {}).get(
-                "closing", "mdi:window-shutter-alert"
-            )
+        if position == 0:
+            state = "closed"
+        elif position == 100:
+            state = "open"
         else:
-            self._attr_icon = ICONS.get("shade", {}).get("state", {}).get(
-                "open", "mdi:window-shutter-open"
-            )
+            state = "default"
 
-        self.async_write_ha_state()
+        # Use state icons if available
+        return ICONS.get("shade", {}).get("state", {}).get(
+            state, ICONS.get("shade", {}).get("default", "mdi:window-shutter")
+        )
 
     @property
-    def current_cover_position(self) -> int:
+    def current_cover_position(self) -> Optional[int]:
         """Return current position of cover."""
-        shade = self.shade
-        if not shade:
-            return 0
-
-        # Convert from 0-65535 to 0-100
-        return round(shade.position / OPEN_VALUE * 100)
-
-    @property
-    def is_opening(self) -> bool:
-        """Return if the cover is opening or not."""
-        return self._last_position < self.current_cover_position
-
-    @property
-    def is_closing(self) -> bool:
-        """Return if the cover is closing or not."""
-        return self._last_position > self.current_cover_position
+        shade = self.coordinator.shades.get(self._shade_id, {})
+        return shade.get("position", 0)
 
     @property
     def is_closed(self) -> bool:
-        """Return if the cover is closed or not."""
-        shade = self.shade
-        if not shade:
-            return True
-        return shade.position == CLOSED_VALUE
+        """Return if the cover is closed."""
+        position = self.current_cover_position
+        if position is None:
+            return False
+        return position == 0
 
     @property
-    def extra_state_attributes(self) -> Dict[str, Any]:
-        """Return entity specific state attributes."""
-        shade = self.shade
-        if not shade:
-            return {}
+    def is_opening(self) -> bool:
+        """Return if the cover is opening."""
+        shade = self.coordinator.shades.get(self._shade_id, {})
+        return shade.get("status") == "opening"
 
-        return {
-            "connection_status": shade.connectionStatus,
-            "room_id": shade.roomId,
-        }
+    @property
+    def is_closing(self) -> bool:
+        """Return if the cover is closing."""
+        shade = self.coordinator.shades.get(self._shade_id, {})
+        return shade.get("status") == "closing"
 
     async def async_open_cover(self, **kwargs: Any) -> None:
         """Open the cover."""
-        await self.coordinator.open_shade(self._shade_id)
+        await self.coordinator.api.open_shade(self._shade_id)
+        await self.coordinator.async_request_refresh()
 
     async def async_close_cover(self, **kwargs: Any) -> None:
         """Close the cover."""
-        await self.coordinator.close_shade(self._shade_id)
+        await self.coordinator.api.close_shade(self._shade_id)
+        await self.coordinator.async_request_refresh()
 
     async def async_stop_cover(self, **kwargs: Any) -> None:
         """Stop the cover."""
-        # For now we don't have a direct stop command,
-        # so we'll set it to the current position to stop movement
-        shade = self.shade
-        if not shade:
-            return
-        await self.coordinator.set_shade_position(self._shade_id, shade.position)
+        await self.coordinator.api.stop_shade(self._shade_id)
+        await self.coordinator.async_request_refresh()
 
     async def async_set_cover_position(self, **kwargs: Any) -> None:
         """Move the cover to a specific position."""
-        if ATTR_POSITION not in kwargs:
-            return
-
-        position = kwargs[ATTR_POSITION]
-        # Convert from 0-100 to 0-65535
-        raw_position = round(position / 100 * OPEN_VALUE)
-        await self.coordinator.set_shade_position(self._shade_id, raw_position)
+        position = kwargs.get(ATTR_POSITION)
+        if position is not None:
+            await self.coordinator.api.set_position(self._shade_id, position)
+            await self.coordinator.async_request_refresh()

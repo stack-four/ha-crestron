@@ -1,33 +1,22 @@
-"""Exceptions for the Crestron integration."""
+"""Crestron API errors."""
 from __future__ import annotations
 
-from typing import Any
+
+class ApiError(Exception):
+    """General API error."""
 
 
-class CrestronError(Exception):
-    """Base class for Crestron exceptions."""
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        """Initialize the exception."""
-        super().__init__(*args)
-        self.kwargs = kwargs
+class ApiAuthError(ApiError):
+    """API authentication error."""
 
 
-class ApiAuthError(CrestronError):
-    """Exception raised for authentication errors."""
+class ApiConnectionError(ApiError):
+    """API connection error."""
 
 
-class ApiError(CrestronError):
-    """Exception raised for API errors."""
+class ApiTimeoutError(ApiError):
+    """API timeout error."""
 
 
-class ApiConnectionError(CrestronError):
-    """Exception raised for connection errors."""
-
-
-class ApiTimeoutError(CrestronError):
-    """Exception raised for timeout errors."""
-
-
-class UnsupportedFeatureError(CrestronError):
+class UnsupportedFeatureError(Exception):
     """Exception raised when a feature is not supported."""

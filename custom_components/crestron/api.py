@@ -80,6 +80,8 @@ class CrestronAPI:
         self._auth_token = auth_token
         self._auth_key = None
         self._base_url = f"http://{host}/cws/api"
+        self.shades: Dict[int, Dict[str, Any]] = {}
+        self._is_connected = False
 
     @property
     def host(self) -> str:
@@ -106,6 +108,7 @@ class CrestronAPI:
             self._auth_key = data.get("authkey")
             if not self._auth_key:
                 raise ApiAuthError("No auth key received from API")
+            self._is_connected = True
             return True
         except aiohttp.ClientResponseError as err:
             if err.status == 401:
@@ -198,6 +201,7 @@ class CrestronAPI:
             )
             data = await response.json()
             shades = data.get("shades", [])
+            self.shades = {shade["id"]: shade for shade in shades}
             return [ShadeState.from_dict(shade) for shade in shades]
         except aiohttp.ClientResponseError as err:
             if err.status == 401:
@@ -295,3 +299,7 @@ class CrestronAPI:
             roomId=room_id,
         )
         return await self.set_shades_state([shade])
+
+    def has_shade(self, shade_id: int) -> bool:
+        """Check if a shade exists."""
+        return shade_id in self.shades

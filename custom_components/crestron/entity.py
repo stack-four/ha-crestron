@@ -34,15 +34,15 @@ class CrestronEntity(CoordinatorEntity[CrestronCoordinator]):
         self._attr_unique_id = f"{coordinator.unique_id}_{shade_id}"
 
         # Get shade from coordinator
-        shade = coordinator.shades.get(shade_id)
+        shade = coordinator.shades.get(shade_id, {})
         if shade:
             # Set up device info
-            room_id = shade.roomId if hasattr(shade, "roomId") else 0
+            room_id = shade.get("roomId", 0)
             room_name = f"Room {room_id}" if room_id > 0 else "Unknown Room"
 
             self._attr_device_info = DeviceInfo(
                 identifiers={(DOMAIN, f"{coordinator.unique_id}_{shade_id}")},
-                name=shade.name,
+                name=shade.get("name", f"Shade {shade_id}"),
                 manufacturer=MANUFACTURER,
                 model="Crestron Shade",
                 via_device=(DOMAIN, coordinator.unique_id),
@@ -60,7 +60,7 @@ class CrestronEntity(CoordinatorEntity[CrestronCoordinator]):
             return False
 
         # Check if the shade is online
-        return shade.connectionStatus.lower() == "online"
+        return shade.get("connectionStatus", "").lower() == "online"
 
     @property
     def shade(self):
