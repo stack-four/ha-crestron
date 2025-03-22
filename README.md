@@ -1,6 +1,6 @@
 # Home Assistant Crestron Integration
 
-![Crestron Logo](src/components/crestron/brand/logo.svg)
+![Crestron Logo](custom_components/crestron/brand/logo.svg)
 
 Control your Crestron devices through Home Assistant.
 
@@ -18,7 +18,7 @@ This integration allows you to control Crestron devices through Home Assistant u
 
 ## Installation
 
-See the detailed [installation instructions](src/components/crestron/README.md) in the integration folder.
+See the detailed [installation instructions](custom_components/crestron/README.md) in the integration folder.
 
 ## Usage
 
