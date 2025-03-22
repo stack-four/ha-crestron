@@ -4,14 +4,14 @@ from __future__ import annotations
 import asyncio
 from datetime import timedelta
 import logging
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict
 
 import async_timeout
 
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
-from homeassistant.components.cover import ATTR_POSITION, CoverEntityFeature
+
 
 from .api import (
     ApiAuthError,
@@ -19,8 +19,6 @@ from .api import (
     ApiConnectionError,
     ApiTimeoutError,
     CrestronAPI,
-    OPEN_VALUE,
-    CLOSED_VALUE,
     HA_OPEN_VALUE,
     HA_CLOSED_VALUE,
     convert_position_to_ha,
