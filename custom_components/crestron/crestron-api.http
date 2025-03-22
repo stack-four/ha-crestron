@@ -1,5 +1,5 @@
-@apiUrl = http://192.168.10.200/cws/api
-@authToken = Ygb3cVlXg13I
+@apiUrl = http://{CRESTRON_API_HOST}/cws/api
+@authToken = {CRESTRON_API_AUTH_TOKEN}
 
 @openValue = 65535
 
