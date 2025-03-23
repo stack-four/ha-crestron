@@ -34,7 +34,10 @@ class CrestronCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
 
     def __init__(self, hass: HomeAssistant, api: CrestronAPI, entry_options: Dict[str, Any]):
         """Initialize coordinator."""
-        # Get scan interval from options or use default
+        self.api = api
+        self.options = entry_options
+        self.platforms = []
+        self.shades = {}
         scan_interval = entry_options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
 
         super().__init__(
@@ -43,9 +46,6 @@ class CrestronCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
             name=DOMAIN,
             update_interval=timedelta(seconds=scan_interval),
         )
-        self.api = api
-        self._shades: Dict[int, Dict[str, Any]] = {}
-        self._last_update_success = False
         self._is_connected = False
         self._connection_errors = 0
         self._max_connection_errors = 3
@@ -53,7 +53,7 @@ class CrestronCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
     @property
     def shades(self) -> Dict[int, Dict[str, Any]]:
         """Return cached shades."""
-        return self._shades
+        return self.shades
 
     @property
     def unique_id(self) -> str:
@@ -64,11 +64,6 @@ class CrestronCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
     def is_connected(self) -> bool:
         """Return if api is connected."""
         return self._is_connected
-
-    @property
-    def last_update_success(self) -> bool:
-        """Return if last update was successful."""
-        return self._last_update_success
 
     async def _async_update_data(self) -> Dict[str, Any]:
         """Fetch data from API endpoint."""
@@ -100,7 +95,7 @@ class CrestronCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
                 shade_states = await self.api.get_shades()
 
                 # Convert to dictionary keyed by ID for easier lookups
-                self._shades = {
+                self.shades = {
                     shade.id: {
                         "id": shade.id,
                         "name": shade.name,
@@ -113,25 +108,22 @@ class CrestronCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
                 }
 
                 # If we got here, update was successful
-                if not self._last_update_success:
+                if not self._is_connected:
                     _LOGGER.info("Connection to Crestron API restored")
-                self._last_update_success = True
                 self._is_connected = True
                 self._connection_errors = 0
 
                 # Return data
                 return {
-                    "shades": self._shades,
+                    "shades": self.shades,
                     "connected": self._is_connected,
                 }
         except ApiAuthError as err:
-            self._last_update_success = False
             self._is_connected = False
             # Raising ConfigEntryAuthFailed will cancel future updates
             # and start a config flow with SOURCE_REAUTH (async_step_reauth)
             raise ConfigEntryAuthFailed(f"Authentication failed: {err}") from err
         except ApiConnectionError as err:
-            self._last_update_success = False
             self._connection_errors += 1
             if self._connection_errors >= self._max_connection_errors:
                 self._is_connected = False
@@ -142,31 +134,27 @@ class CrestronCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
             _LOGGER.error("Connection error during update: %s", err)
             raise UpdateFailed(f"Error connecting to API: {err}") from err
         except ApiTimeoutError as err:
-            self._last_update_success = False
             self._connection_errors += 1
             if self._connection_errors >= self._max_connection_errors:
                 self._is_connected = False
             _LOGGER.error("Timeout during update: %s", err)
             raise UpdateFailed(f"Timeout connecting to API: {err}") from err
         except ApiError as err:
-            self._last_update_success = False
             _LOGGER.error("API error during update: %s", err)
             raise UpdateFailed(f"Error communicating with API: {err}") from err
         except asyncio.TimeoutError as err:
-            self._last_update_success = False
             self._connection_errors += 1
             if self._connection_errors >= self._max_connection_errors:
                 self._is_connected = False
             _LOGGER.error("Async timeout during update: %s", err)
             raise UpdateFailed(f"Timeout during update: {err}") from err
         except Exception as err:
-            self._last_update_success = False
             _LOGGER.exception("Unexpected error during update: %s", err)
             raise UpdateFailed(f"Unexpected error: {err}") from err
 
     def has_shade(self, shade_id: int) -> bool:
         """Check if shade exists."""
-        return shade_id in self._shades
+        return shade_id in self.shades
 
     async def open_shade(self, shade_id: int) -> bool:
         """Open a shade."""
@@ -178,9 +166,9 @@ class CrestronCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
             result = await self.api.open_shade(shade_id)
 
             # Update local state immediately on success
-            if result and shade_id in self._shades:
-                self._shades[shade_id]["position"] = HA_OPEN_VALUE
-                self.async_set_updated_data({"shades": self._shades})
+            if result and shade_id in self.shades:
+                self.shades[shade_id]["position"] = HA_OPEN_VALUE
+                self.async_set_updated_data({"shades": self.shades})
                 _LOGGER.debug("Successfully opened shade %s", shade_id)
 
             # Schedule refresh to get the latest state
@@ -212,9 +200,9 @@ class CrestronCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
             result = await self.api.close_shade(shade_id)
 
             # Update local state immediately on success
-            if result and shade_id in self._shades:
-                self._shades[shade_id]["position"] = HA_CLOSED_VALUE
-                self.async_set_updated_data({"shades": self._shades})
+            if result and shade_id in self.shades:
+                self.shades[shade_id]["position"] = HA_CLOSED_VALUE
+                self.async_set_updated_data({"shades": self.shades})
                 _LOGGER.debug("Successfully closed shade %s", shade_id)
 
             # Schedule refresh to get the latest state
@@ -248,9 +236,9 @@ class CrestronCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
             result = await self.api.set_position(shade_id, crestron_position)
 
             # Update local state immediately on success
-            if result and shade_id in self._shades:
-                self._shades[shade_id]["position"] = position
-                self.async_set_updated_data({"shades": self._shades})
+            if result and shade_id in self.shades:
+                self.shades[shade_id]["position"] = position
+                self.async_set_updated_data({"shades": self.shades})
                 _LOGGER.debug("Successfully set position for shade %s to %s", shade_id, position)
 
             # Schedule refresh to get the latest state
@@ -282,8 +270,8 @@ class CrestronCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
             result = await self.api.stop_shade(shade_id)
 
             # Update UI immediately to indicate the shade has stopped
-            if result and shade_id in self._shades:
-                self.async_set_updated_data({"shades": self._shades})
+            if result and shade_id in self.shades:
+                self.async_set_updated_data({"shades": self.shades})
                 _LOGGER.debug("Successfully stopped shade %s", shade_id)
 
             # Schedule refresh to get the latest state
