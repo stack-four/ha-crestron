@@ -144,7 +144,13 @@ class CrestronAPI:
                 ) as response:
                     if response.status == 200:
                         response_json = await response.json()
-                        self._auth_key = response_json.get("authKey")# Auth valid for 1 hour
+                        # Try both "authKey" and "authkey" in case the API is inconsistent
+                        self._auth_key = response_json.get("authkey")
+
+                        if not self._auth_key:
+                            _LOGGER.error("Login succeeded but no auth key was returned. Response: %s", response_json)
+                            raise ApiAuthError("Login succeeded but no auth key was returned")
+
                         _LOGGER.info("Successfully logged in to Crestron API")
                         return self._auth_key
                     else:
@@ -212,7 +218,11 @@ class CrestronAPI:
         """Ensure the API client is logged in and return valid auth key."""
         if self._auth_key is None:
             _LOGGER.info("Auth key is invalid or expired, logging in...")
-            await self.login()
+            self._auth_key = await self.login()
+
+        if not self._auth_key:
+            _LOGGER.error("Failed to obtain a valid auth key")
+            raise ApiAuthError("Failed to obtain a valid authentication key")
 
         return self._auth_key
 
@@ -304,6 +314,11 @@ class CrestronAPI:
         """Get all shades."""
         auth_key = await self._ensure_logged_in()  # Get valid auth key
         _LOGGER.debug("Fetching all shades")
+
+        # Ensure auth_key is not None before proceeding
+        if not auth_key:
+            _LOGGER.error("Unable to get valid auth key for shades request")
+            raise ApiAuthError("No valid authentication key available")
 
         async def _get_shades():
             try:
