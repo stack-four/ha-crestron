@@ -125,17 +125,14 @@ class CrestronAPI:
         """Return auth token."""
         return self._auth_token
 
-    async def login(self) -> None:
+    async def login(self) -> str:
         """Log in to API and get an auth token."""
-        if self._auth_key and self._is_auth_valid():
-            _LOGGER.debug("Using existing valid auth key")
-            return
 
         async with self._login_lock:
             # Check again in case another task got the lock first and already logged in
-            if self._auth_key and self._is_auth_valid():
+            if self._auth_key:
                 _LOGGER.debug("Another task already performed login")
-                return
+                return self._auth_key
 
             _LOGGER.info("Logging in to Crestron API at %s", self._host)
             try:
@@ -149,6 +146,7 @@ class CrestronAPI:
                         response_json = await response.json()
                         self._auth_key = response_json.get("authKey")# Auth valid for 1 hour
                         _LOGGER.info("Successfully logged in to Crestron API")
+                        return self._auth_key
                     else:
                         error_text = await response.text()
                         _LOGGER.error(
@@ -210,11 +208,12 @@ class CrestronAPI:
         _LOGGER.error("Exceeded maximum retries")
         raise ApiError("Exceeded maximum retries")
 
-    async def _ensure_logged_in(self):
+    async def _ensure_logged_in(self) -> str:
         """Ensure the API client is logged in and return valid auth key."""
-        if not self._is_auth_valid():
+        if self._auth_key is None:
             _LOGGER.info("Auth key is invalid or expired, logging in...")
             await self.login()
+
         return self._auth_key
 
     async def ping(self) -> bool:
@@ -505,7 +504,3 @@ class CrestronAPI:
     def has_shade(self, shade_id: int) -> bool:
         """Check if a shade exists."""
         return shade_id in self.shades
-
-    def _is_auth_valid(self) -> bool:
-        """Check if the current auth key is valid."""
-        return self._auth_key
