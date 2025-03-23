@@ -332,13 +332,10 @@ class CrestronAPI:
                     if response.status == 200:
                         _LOGGER.debug("Got 200 response, parsing JSON")
                         response_json = await response.json()
-                        _LOGGER.debug("Response type: %s", type(response_json))
-                        _LOGGER.debug("Response keys: %s", response_json.keys() if isinstance(response_json, dict) else "Not a dict")
 
                         # Process the dictionary response containing 'shades' key
                         if isinstance(response_json, dict) and "shades" in response_json:
                             shade_list = response_json["shades"]
-                            _LOGGER.debug("Found shades key with %d items", len(shade_list))
 
                             shades = []
                             for shade_data in shade_list:
