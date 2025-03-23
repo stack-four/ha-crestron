@@ -6,7 +6,6 @@
 ### Ping
 # @name ping
 GET {{apiUrl}}
-Crestron-RestAPI-AuthToken: {{authToken}}
 
 ### login
 # @name login

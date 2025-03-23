@@ -74,8 +74,10 @@ def register_services(hass: HomeAssistant) -> None:
 
         # Find coordinator that contains this shade
         for entry_id, coordinator in hass.data[DOMAIN].items():
-            if coordinator.api.has_shade(shade_id):
-                await coordinator.api.set_position(shade_id, position)
+            if coordinator.has_shade(shade_id):
+                success = await coordinator.set_shade_position(shade_id, position)
+                if not success:
+                    _LOGGER.warning("Failed to set position for shade %s", shade_id)
                 return
 
         _LOGGER.error("Could not find shade with ID %s", shade_id)
@@ -86,8 +88,10 @@ def register_services(hass: HomeAssistant) -> None:
 
         # Find coordinator that contains this shade
         for entry_id, coordinator in hass.data[DOMAIN].items():
-            if coordinator.api.has_shade(shade_id):
-                await coordinator.api.open_shade(shade_id)
+            if coordinator.has_shade(shade_id):
+                success = await coordinator.open_shade(shade_id)
+                if not success:
+                    _LOGGER.warning("Failed to open shade %s", shade_id)
                 return
 
         _LOGGER.error("Could not find shade with ID %s", shade_id)
@@ -98,8 +102,10 @@ def register_services(hass: HomeAssistant) -> None:
 
         # Find coordinator that contains this shade
         for entry_id, coordinator in hass.data[DOMAIN].items():
-            if coordinator.api.has_shade(shade_id):
-                await coordinator.api.close_shade(shade_id)
+            if coordinator.has_shade(shade_id):
+                success = await coordinator.close_shade(shade_id)
+                if not success:
+                    _LOGGER.warning("Failed to close shade %s", shade_id)
                 return
 
         _LOGGER.error("Could not find shade with ID %s", shade_id)
@@ -110,8 +116,10 @@ def register_services(hass: HomeAssistant) -> None:
 
         # Find coordinator that contains this shade
         for entry_id, coordinator in hass.data[DOMAIN].items():
-            if coordinator.api.has_shade(shade_id):
-                await coordinator.api.stop_shade(shade_id)
+            if coordinator.has_shade(shade_id):
+                success = await coordinator.stop_shade(shade_id)
+                if not success:
+                    _LOGGER.warning("Failed to stop shade %s", shade_id)
                 return
 
         _LOGGER.error("Could not find shade with ID %s", shade_id)

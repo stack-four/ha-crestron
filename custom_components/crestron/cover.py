@@ -159,18 +159,44 @@ class CrestronShade(CoordinatorEntity, CoverEntity):
 
     async def async_open_cover(self, **kwargs: Any) -> None:
         """Open the cover."""
-        await self.coordinator.open_shade(self._shade_id)
+        success = await self.coordinator.open_shade(self._shade_id)
+        if not success:
+            # Operation failed, restore previous state
+            self.async_write_ha_state()
 
     async def async_close_cover(self, **kwargs: Any) -> None:
         """Close cover."""
-        await self.coordinator.close_shade(self._shade_id)
+        success = await self.coordinator.close_shade(self._shade_id)
+        if not success:
+            # Operation failed, restore previous state
+            self.async_write_ha_state()
 
     async def async_stop_cover(self, **kwargs: Any) -> None:
         """Stop the cover."""
-        await self.coordinator.stop_shade(self._shade_id)
+        success = await self.coordinator.stop_shade(self._shade_id)
+        if not success:
+            # Operation failed, restore previous state
+            self.async_write_ha_state()
 
     async def async_set_cover_position(self, **kwargs: Any) -> None:
         """Move the cover to a specific position."""
         if ATTR_POSITION in kwargs:
-            position = kwargs[ATTR_POSITION]
-            await self.coordinator.set_shade_position(self._shade_id, position)
+            success = await self.coordinator.set_shade_position(
+                self._shade_id, kwargs[ATTR_POSITION]
+            )
+            if not success:
+                # Operation failed, restore previous state
+                self.async_write_ha_state()
+
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        # Entity is available if we have shade data and coordinator is connected
+        shade_data = self.coordinator.shades.get(self._shade_id)
+        return shade_data is not None and self.coordinator.is_connected
+
+    @property
+    def assumed_state(self) -> bool:
+        """Return if the state is assumed."""
+        # If the coordinator had a failed update but we still have data, the state is assumed
+        return not self.coordinator.last_update_success and self._shade_id in self.coordinator.shades
