@@ -220,29 +220,17 @@ class CrestronAPI:
     async def ping(self) -> bool:
         """Ping the API to verify connectivity."""
         try:
-            auth_key = await self._ensure_logged_in()  # Get valid auth key
 
             timeout = aiohttp.ClientTimeout(total=10)
             _LOGGER.debug("Pinging Crestron API at %s", self._host)
             async with self._session.get(
                 f"{self._base_url}",
-                headers={API_AUTH_KEY_HEADER: auth_key},
                 timeout=timeout,
             ) as response:
                 if response.status == 200:
                     # Connection is good
                     _LOGGER.debug("Ping successful - connection is active")
                     return True
-                elif response.status == 401:
-                    # Auth issue, try login again
-                    _LOGGER.info("Authentication expired, attempting to re-login")
-                    try:
-                        await self.login()
-                        _LOGGER.info("Re-login successful")
-                        return True
-                    except Exception as err:
-                        _LOGGER.error("Failed to re-login after auth error: %s", err)
-                        return False
                 else:
                     # Other status code
                     _LOGGER.error(
