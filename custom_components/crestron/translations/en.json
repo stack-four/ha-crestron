@@ -103,6 +103,11 @@
     "cover": {
       "shade": {
         "name": "Shade",
+        "state": {
+          "closed": "Closed",
+          "open": "Open",
+          "partially_open": "Partially Open"
+        },
         "state_attributes": {
           "position": {
             "name": "Position"

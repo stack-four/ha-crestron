@@ -157,6 +157,16 @@ class CrestronShade(CoordinatorEntity, CoverEntity):
         self._attr_is_opening = False
         self._attr_is_closing = False
 
+    @property
+    def state(self) -> str:
+        """Return the state of the cover."""
+        if self._attr_is_closed:
+            return "closed"
+        elif self._attr_current_position == 100:
+            return "open"
+        else:
+            return "partially_open"
+
     async def async_open_cover(self, **kwargs: Any) -> None:
         """Open the cover."""
         success = await self.coordinator.open_shade(self._shade_id)

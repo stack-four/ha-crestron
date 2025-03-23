@@ -93,12 +93,22 @@ class CrestronShade(CrestronEntity, CoverEntity):
         elif position == 100:
             state = "open"
         else:
-            state = "default"
+            state = "partially_open"  # Use the new partially_open icon
 
         # Use state icons if available
         return ICONS.get("shade", {}).get("state", {}).get(
             state, ICONS.get("shade", {}).get("default", "mdi:window-shutter")
         )
+
+    @property
+    def state(self) -> str:
+        """Return the state of the cover."""
+        if self.is_closed:
+            return "closed"
+        elif self.current_cover_position == 100:
+            return "open"
+        else:
+            return "partially_open"
 
     @property
     def current_cover_position(self) -> Optional[int]:

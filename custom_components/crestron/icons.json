@@ -5,7 +5,8 @@
       "open": "mdi:window-shutter-open",
       "closed": "mdi:window-shutter",
       "opening": "mdi:window-shutter-alert",
-      "closing": "mdi:window-shutter-alert"
+      "closing": "mdi:window-shutter-alert",
+      "partially_open": "mdi:window-shutter-variant"
     }
   },
   "status": {
