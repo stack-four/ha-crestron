@@ -211,18 +211,22 @@ class CrestronAPI:
         raise ApiError("Exceeded maximum retries")
 
     async def _ensure_logged_in(self):
-        """Ensure the API client is logged in."""
+        """Ensure the API client is logged in and return valid auth key."""
         if not self._is_auth_valid():
             _LOGGER.info("Auth key is invalid or expired, logging in...")
             await self.login()
+        return self._auth_key
 
     async def ping(self) -> bool:
         """Ping the API to verify connectivity."""
         try:
+            auth_key = await self._ensure_logged_in()  # Get valid auth key
+
             timeout = aiohttp.ClientTimeout(total=10)
             _LOGGER.debug("Pinging Crestron API at %s", self._host)
             async with self._session.get(
                 f"{self._base_url}",
+                headers={API_AUTH_KEY_HEADER: auth_key},
                 timeout=timeout,
             ) as response:
                 if response.status == 200:
@@ -255,14 +259,14 @@ class CrestronAPI:
 
     async def get_devices(self) -> List[Dict[str, Any]]:
         """Get all devices."""
-        await self._ensure_logged_in()  # Ensure logged in before getting devices
+        auth_key = await self._ensure_logged_in()  # Get valid auth key
 
         # Keep the existing retry logic with 401 handling
         async def _get_devices():
             try:
                 response = await self._session.get(
                     f"{self._base_url}/devices",
-                    headers={API_AUTH_KEY_HEADER: self._auth_key},
+                    headers={API_AUTH_KEY_HEADER: auth_key},
                     raise_for_status=True,
                     timeout=30,
                 )
@@ -311,7 +315,7 @@ class CrestronAPI:
 
     async def get_shades(self) -> List[ShadeState]:
         """Get all shades."""
-        await self._ensure_logged_in()  # Ensure logged in before getting shades
+        auth_key = await self._ensure_logged_in()  # Get valid auth key
         _LOGGER.debug("Fetching all shades")
 
         async def _get_shades():
@@ -319,7 +323,7 @@ class CrestronAPI:
                 timeout = aiohttp.ClientTimeout(total=30)
                 async with self._session.get(
                     f"{self._base_url}/shades",
-                    headers={API_AUTH_KEY_HEADER: self._auth_key},
+                    headers={API_AUTH_KEY_HEADER: auth_key},
                     timeout=timeout,
                 ) as response:
                     if response.status == 200:
@@ -390,13 +394,14 @@ class CrestronAPI:
 
     async def set_shades_state(self, shades: List[ShadeState]) -> bool:
         """Set shades state."""
-        await self._ensure_logged_in()  # Ensure logged in before setting shades state
+        auth_key = await self._ensure_logged_in()  # Get valid auth key
+
         async def _set_shades_state():
             try:
                 response = await self._session.post(
                     f"{self._base_url}/shades/setstate",
                     headers={
-                        API_AUTH_KEY_HEADER: self._auth_key,
+                        API_AUTH_KEY_HEADER: auth_key,
                         "Content-Type": "application/json",
                     },
                     json={"shades": [shade.to_dict() for shade in shades]},
