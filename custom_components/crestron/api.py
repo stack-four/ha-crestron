@@ -323,27 +323,37 @@ class CrestronAPI:
         async def _get_shades():
             try:
                 timeout = aiohttp.ClientTimeout(total=30)
+                _LOGGER.debug("Making request to %s/shades", self._base_url)
                 async with self._session.get(
                     f"{self._base_url}/shades",
                     headers={API_AUTH_KEY_HEADER: auth_key},
                     timeout=timeout,
                 ) as response:
                     if response.status == 200:
+                        _LOGGER.debug("Got 200 response, parsing JSON")
                         response_json = await response.json()
-                        shades = []
+                        _LOGGER.debug("Response type: %s", type(response_json))
+                        _LOGGER.debug("Response keys: %s", response_json.keys() if isinstance(response_json, dict) else "Not a dict")
 
-                                # API returns a dict with "shades" key containing the list of shades
-                        shade_list = response_json.get("shades", [])
+                        # Process the dictionary response containing 'shades' key
+                        if isinstance(response_json, dict) and "shades" in response_json:
+                            shade_list = response_json["shades"]
+                            _LOGGER.debug("Found shades key with %d items", len(shade_list))
 
-                        for shade_data in shade_list:
-                            try:
-                                shade = ShadeState.from_dict(shade_data)
-                                shades.append(shade)
-                            except (KeyError, ValueError) as err:
-                                _LOGGER.warning("Error parsing shade data: %s", err)
+                            shades = []
+                            for shade_data in shade_list:
+                                try:
+                                    shade = ShadeState.from_dict(shade_data)
+                                    shades.append(shade)
+                                    _LOGGER.debug("Added shade: %s", shade.name)
+                                except (KeyError, ValueError) as err:
+                                    _LOGGER.warning("Error parsing shade data: %s", err)
 
-                        _LOGGER.info("Successfully retrieved %s shades", len(shades))
-                        return shades
+                            _LOGGER.info("Successfully retrieved %s shades", len(shades))
+                            return shades
+                        else:
+                            _LOGGER.error("Unexpected response format: %s", response_json)
+                            return []
                     elif response.status == 401:
                         _LOGGER.warning("Authentication error getting shades")
                         raise ApiAuthError("Invalid auth key")
@@ -354,11 +364,18 @@ class CrestronAPI:
                             response.status, error_text
                         )
                         raise ApiError(f"Error getting shades: {response.status}")
+
             except aiohttp.ClientResponseError as err:
                 _LOGGER.error("Response error getting shades: %s", err)
                 if err.status == 401:
                     raise ApiAuthError("Invalid auth key") from err
                 raise ApiError(f"Error getting shades: {err}") from err
+            except (aiohttp.ClientError, asyncio.TimeoutError) as err:
+                _LOGGER.error("Connection error getting shades: %s", err)
+                raise ApiConnectionError(f"Connection error getting shades: {err}") from err
+            except Exception as err:  # Catch-all for unexpected errors
+                _LOGGER.exception("Unexpected error getting shades: %s", err)
+                raise ApiError(f"Unexpected error getting shades: {err}") from err
 
         return await self._execute_with_retry(_get_shades)
 
