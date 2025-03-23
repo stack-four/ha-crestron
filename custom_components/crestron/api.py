@@ -114,7 +114,6 @@ class CrestronAPI:
         self._is_connected = False
         self._connection_lock = asyncio.Lock()
         self._login_lock = asyncio.Lock()
-        self._auth_expiry = 0
 
     @property
     def host(self) -> str:
@@ -141,16 +140,14 @@ class CrestronAPI:
             _LOGGER.info("Logging in to Crestron API at %s", self._host)
             try:
                 timeout = aiohttp.ClientTimeout(total=30)
-                async with self._session.post(
+                async with self._session.get(
                     f"{self._base_url}/login",
-                    json={"authToken": self._auth_token},
                     headers={API_AUTH_TOKEN_HEADER: self._auth_token},  # Only use this header for login
                     timeout=timeout,
                 ) as response:
                     if response.status == 200:
                         response_json = await response.json()
-                        self._auth_key = response_json.get("authKey")
-                        self._auth_expiry = time.time() + 3600  # Auth valid for 1 hour
+                        self._auth_key = response_json.get("authKey")# Auth valid for 1 hour
                         _LOGGER.info("Successfully logged in to Crestron API")
                     else:
                         error_text = await response.text()
@@ -222,8 +219,6 @@ class CrestronAPI:
     async def ping(self) -> bool:
         """Ping the API to verify connectivity."""
         try:
-            await self._ensure_logged_in()  # Try to ensure logged in before pinging
-
             timeout = aiohttp.ClientTimeout(total=10)
             _LOGGER.debug("Pinging Crestron API at %s", self._host)
             async with self._session.get(
@@ -521,4 +516,4 @@ class CrestronAPI:
 
     def _is_auth_valid(self) -> bool:
         """Check if the current auth key is valid."""
-        return self._auth_key and time.time() < self._auth_expiry
+        return self._auth_key
