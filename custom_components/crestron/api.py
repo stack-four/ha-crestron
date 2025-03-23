@@ -213,13 +213,22 @@ class CrestronAPI:
         _LOGGER.error("Exceeded maximum retries")
         raise ApiError("Exceeded maximum retries")
 
+    async def _ensure_logged_in(self):
+        """Ensure the API client is logged in."""
+        if not self._is_auth_valid():
+            _LOGGER.info("Auth key is invalid or expired, logging in...")
+            await self.login()
+
     async def ping(self) -> bool:
         """Ping the API to verify connectivity."""
         try:
+            await self._ensure_logged_in()  # Try to ensure logged in before pinging
+
             timeout = aiohttp.ClientTimeout(total=10)
             _LOGGER.debug("Pinging Crestron API at %s", self._host)
             async with self._session.get(
                 f"{self._base_url}",
+                headers={API_AUTH_KEY_HEADER: self._auth_key},
                 timeout=timeout,
             ) as response:
                 if response.status == 200:
@@ -227,7 +236,7 @@ class CrestronAPI:
                     _LOGGER.debug("Ping successful - connection is active")
                     return True
                 elif response.status == 401:
-                    # Auth issue, try login
+                    # Auth issue, try login again
                     _LOGGER.info("Authentication expired, attempting to re-login")
                     try:
                         await self.login()
@@ -252,13 +261,16 @@ class CrestronAPI:
 
     async def get_devices(self) -> List[Dict[str, Any]]:
         """Get all devices."""
+        await self._ensure_logged_in()  # Ensure logged in before getting devices
+
+        # Keep the existing retry logic with 401 handling
         async def _get_devices():
             try:
                 response = await self._session.get(
                     f"{self._base_url}/devices",
                     headers={API_AUTH_KEY_HEADER: self._auth_key},
                     raise_for_status=True,
-                    timeout=30,  # Add explicit timeout
+                    timeout=30,
                 )
                 data = await response.json()
                 return data.get("devices", [])
@@ -280,13 +292,14 @@ class CrestronAPI:
 
     async def get_device(self, device_id: int) -> Optional[Dict[str, Any]]:
         """Get a device by ID."""
+        await self._ensure_logged_in()  # Ensure logged in before getting a device
         async def _get_device():
             try:
                 response = await self._session.get(
                     f"{self._base_url}/devices/{device_id}",
                     headers={API_AUTH_KEY_HEADER: self._auth_key},
                     raise_for_status=True,
-                    timeout=30,  # Add explicit timeout
+                    timeout=30,
                 )
                 data = await response.json()
                 devices = data.get("devices", [])
@@ -299,18 +312,12 @@ class CrestronAPI:
                 if err.status == 404:
                     return None
                 raise ApiError(f"Error getting device {device_id}: {err}") from err
-            except (aiohttp.ClientConnectionError, aiohttp.ServerDisconnectedError) as err:
-                self._is_connected = False
-                raise ApiConnectionError(f"Connection error getting device {device_id}: {err}") from err
-            except asyncio.TimeoutError as err:
-                raise ApiTimeoutError(f"Timeout getting device {device_id}: {err}") from err
-            except (ValueError, Exception) as err:
-                raise ApiError(f"Error getting device {device_id}: {err}") from err
 
         return await self._execute_with_retry(_get_device)
 
     async def get_shades(self) -> List[ShadeState]:
         """Get all shades."""
+        await self._ensure_logged_in()  # Ensure logged in before getting shades
         _LOGGER.debug("Fetching all shades")
 
         async def _get_shades():
@@ -353,15 +360,6 @@ class CrestronAPI:
                 if err.status == 401:
                     raise ApiAuthError("Invalid auth key") from err
                 raise ApiError(f"Error getting shades: {err}") from err
-            except (aiohttp.ClientConnectionError, aiohttp.ServerDisconnectedError) as err:
-                _LOGGER.error("Connection error getting shades: %s", err)
-                raise ApiConnectionError(f"Connection error getting shades: {err}") from err
-            except asyncio.TimeoutError as err:
-                _LOGGER.error("Timeout getting shades: %s", err)
-                raise ApiTimeoutError(f"Timeout getting shades: {err}") from err
-            except Exception as err:
-                _LOGGER.exception("Unexpected error getting shades: %s", err)
-                raise ApiError(f"Error getting shades: {err}") from err
 
         return await self._execute_with_retry(_get_shades)
 
@@ -398,6 +396,7 @@ class CrestronAPI:
 
     async def set_shades_state(self, shades: List[ShadeState]) -> bool:
         """Set shades state."""
+        await self._ensure_logged_in()  # Ensure logged in before setting shades state
         async def _set_shades_state():
             try:
                 response = await self._session.post(
@@ -408,7 +407,7 @@ class CrestronAPI:
                     },
                     json={"shades": [shade.to_dict() for shade in shades]},
                     raise_for_status=True,
-                    timeout=30,  # Add explicit timeout
+                    timeout=30,
                 )
                 data = await response.json()
                 return data.get("status") == "success"
@@ -418,18 +417,12 @@ class CrestronAPI:
                     self._is_connected = False
                     raise ApiAuthError("Invalid auth key") from err
                 raise ApiError(f"Error setting shades state: {err}") from err
-            except (aiohttp.ClientConnectionError, aiohttp.ServerDisconnectedError) as err:
-                self._is_connected = False
-                raise ApiConnectionError(f"Connection error setting shades state: {err}") from err
-            except asyncio.TimeoutError as err:
-                raise ApiTimeoutError(f"Timeout setting shades state: {err}") from err
-            except (ValueError, Exception) as err:
-                raise ApiError(f"Error setting shades state: {err}") from err
 
         return await self._execute_with_retry(_set_shades_state)
 
     async def set_position(self, shade_id: int, position: int) -> bool:
         """Set shade position."""
+        await self._ensure_logged_in()  # Ensure logged in before setting position
         _LOGGER.debug("Setting shade %s position to %s", shade_id, position)
 
         # We need to fetch all shades first
