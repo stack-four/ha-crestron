@@ -144,6 +144,7 @@ class CrestronAPI:
                 async with self._session.post(
                     f"{self._base_url}/login",
                     json={"authToken": self._auth_token},
+                    headers={API_AUTH_TOKEN_HEADER: self._auth_token},  # Only use this header for login
                     timeout=timeout,
                 ) as response:
                     if response.status == 200:
@@ -432,63 +433,37 @@ class CrestronAPI:
         """Set shade position."""
         _LOGGER.debug("Setting shade %s position to %s", shade_id, position)
 
-        # Get the shade first to make sure it exists
+        # We need to fetch all shades first
         try:
-            shade = await self.get_shade(shade_id)
-            if not shade:
-                _LOGGER.error("Shade %s not found", shade_id)
+            all_shades = await self.get_shades()
+            if not all_shades:
+                _LOGGER.error("Failed to get shades for updating position")
                 return False
-        except Exception as err:
-            _LOGGER.error("Error checking shade %s: %s", shade_id, err)
-            # Continue anyway, as the actual set position may still work
 
-        async def _set_position():
-            try:
-                timeout = aiohttp.ClientTimeout(total=30)
-                async with self._session.post(
-                    f"{self._base_url}/shades/{shade_id}/position",
-                    headers=self._get_headers(),
-                    json={"position": position},
-                    timeout=timeout,
-                ) as response:
-                    if response.status == 200:
-                        _LOGGER.info("Successfully set position for shade %s to %s",
-                                     shade_id, position)
-                        return True
-                    elif response.status == 401:
-                        _LOGGER.warning(
-                            "Authentication error setting position for shade %s", shade_id
-                        )
-                        raise ApiAuthError("Invalid auth key")
-                    elif response.status == 404:
-                        _LOGGER.error("Shade %s not found", shade_id)
-                        return False
-                    else:
-                        error_text = await response.text()
-                        _LOGGER.error(
-                            "Error setting position for shade %s: HTTP %s - %s",
-                            shade_id, response.status, error_text
-                        )
-                        return False
-            except aiohttp.ClientResponseError as err:
-                _LOGGER.error("Response error setting position for shade %s: %s", shade_id, err)
-                if err.status == 401:
-                    raise ApiAuthError("Invalid auth key") from err
-                raise ApiError(f"Error setting position: {err}") from err
-            except (aiohttp.ClientConnectionError, aiohttp.ServerDisconnectedError) as err:
-                _LOGGER.error("Connection error setting position for shade %s: %s", shade_id, err)
-                raise ApiConnectionError(f"Connection error setting position: {err}") from err
-            except asyncio.TimeoutError as err:
-                _LOGGER.error("Timeout setting position for shade %s: %s", shade_id, err)
-                raise ApiTimeoutError(f"Timeout setting position: {err}") from err
-            except Exception as err:
-                _LOGGER.exception("Unexpected error setting position for shade %s: %s", shade_id, err)
-                raise ApiError(f"Error setting position: {err}") from err
+            # Find the specific shade we want to update
+            target_shade = None
+            for shade in all_shades:
+                if shade.id == shade_id:
+                    target_shade = shade
+                    break
 
-        try:
-            return await self._execute_with_retry(_set_position)
+            if not target_shade:
+                _LOGGER.error("Shade %s not found in the list of shades", shade_id)
+                return False
+
+            # Update the position of the target shade
+            target_shade.position = position
+
+            # Send the updated state for all shades
+            result = await self.set_shades_state(all_shades)
+            if result:
+                _LOGGER.info("Successfully set position for shade %s to %s", shade_id, position)
+            else:
+                _LOGGER.error("Failed to set position for shade %s", shade_id)
+            return result
+
         except Exception as err:
-            _LOGGER.error("Failed to set position for shade %s: %s", shade_id, err)
+            _LOGGER.error("Error setting position for shade %s: %s", shade_id, err)
             return False
 
     async def open_shade(self, shade_id: int) -> bool:
@@ -549,6 +524,5 @@ class CrestronAPI:
     def _get_headers(self):
         """Get headers for API requests."""
         return {
-            API_AUTH_TOKEN_HEADER: self._auth_token,
             API_AUTH_KEY_HEADER: self._auth_key,
         }
