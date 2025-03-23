@@ -436,41 +436,31 @@ class CrestronAPI:
 
     async def set_position(self, shade_id: int, position: int) -> bool:
         """Set shade position."""
-        await self._ensure_logged_in()  # Ensure logged in before setting position
+        auth_key = await self._ensure_logged_in()  # Get valid auth key
         _LOGGER.debug("Setting shade %s position to %s", shade_id, position)
 
-        # We need to fetch all shades first
-        try:
-            all_shades = await self.get_shades()
-            if not all_shades:
-                _LOGGER.error("Failed to get shades for updating position")
-                return False
+        async def _set_shades_position():
+            try:
+                response = await self._session.post(
+                    f"{self._base_url}/shades/setstate",
+                    headers={
+                        API_AUTH_KEY_HEADER: auth_key,
+                        "Content-Type": "application/json",
+                    },
+                    json={"shades": [{"id": shade_id, "position": position}]},
+                    raise_for_status=True,
+                    timeout=30,
+                )
+                data = await response.json()
+                return data.get("status") == "success"
+            except aiohttp.ClientResponseError as err:
+                if err.status == 401:
+                    self._auth_key = None
+                    self._is_connected = False
+                    raise ApiAuthError("Invalid auth key") from err
+                raise ApiError(f"Error setting shade position: {err}") from err
 
-            # Find the specific shade we want to update
-            target_shade = None
-            for shade in all_shades:
-                if shade.id == shade_id:
-                    target_shade = shade
-                    break
-
-            if not target_shade:
-                _LOGGER.error("Shade %s not found in the list of shades", shade_id)
-                return False
-
-            # Update the position of the target shade
-            target_shade.position = position
-
-            # Send the updated state for all shades
-            result = await self.set_shades_state(all_shades)
-            if result:
-                _LOGGER.info("Successfully set position for shade %s to %s", shade_id, position)
-            else:
-                _LOGGER.error("Failed to set position for shade %s", shade_id)
-            return result
-
-        except Exception as err:
-            _LOGGER.error("Error setting position for shade %s: %s", shade_id, err)
-            return False
+        return await self._execute_with_retry(_set_shades_position)
 
     async def open_shade(self, shade_id: int) -> bool:
         """Open a shade."""
