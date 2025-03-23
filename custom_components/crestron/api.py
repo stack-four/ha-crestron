@@ -332,11 +332,10 @@ class CrestronAPI:
                         response_json = await response.json()
                         shades = []
 
-                        if not isinstance(response_json, list):
-                            _LOGGER.error("Unexpected response format: %s", response_json)
-                            return []
+                                # API returns a dict with "shades" key containing the list of shades
+                        shade_list = response_json.get("shades", [])
 
-                        for shade_data in response_json:
+                        for shade_data in shade_list:
                             try:
                                 shade = ShadeState.from_dict(shade_data)
                                 shades.append(shade)
