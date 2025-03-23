@@ -220,7 +220,6 @@ class CrestronAPI:
             _LOGGER.debug("Pinging Crestron API at %s", self._host)
             async with self._session.get(
                 f"{self._base_url}",
-                headers={API_AUTH_KEY_HEADER: self._auth_key},
                 timeout=timeout,
             ) as response:
                 if response.status == 200:
