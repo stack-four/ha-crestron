@@ -220,7 +220,7 @@ class CrestronAPI:
             _LOGGER.debug("Pinging Crestron API at %s", self._host)
             async with self._session.get(
                 f"{self._base_url}",
-                headers=self._get_headers(),
+                headers={API_AUTH_KEY_HEADER: self._auth_key},
                 timeout=timeout,
             ) as response:
                 if response.status == 200:
@@ -319,7 +319,7 @@ class CrestronAPI:
                 timeout = aiohttp.ClientTimeout(total=30)
                 async with self._session.get(
                     f"{self._base_url}/shades",
-                    headers=self._get_headers(),
+                    headers={API_AUTH_KEY_HEADER: self._auth_key},
                     timeout=timeout,
                 ) as response:
                     if response.status == 200:
@@ -483,35 +483,45 @@ class CrestronAPI:
             raise
 
     async def stop_shade(self, shade_id: int) -> bool:
-        """Stop a shade."""
-        async def _stop_shade():
-            try:
-                response = await self._session.post(
-                    f"{self._base_url}/shades/{shade_id}/stop",
-                    headers={API_AUTH_KEY_HEADER: self._auth_key},
-                    raise_for_status=True,
-                    timeout=30,  # Add explicit timeout
-                )
-                return True
-            except aiohttp.ClientResponseError as err:
-                if err.status == 401:
-                    self._auth_key = None
-                    self._is_connected = False
-                    raise ApiAuthError("Invalid auth key") from err
-                raise ApiError(f"Error stopping shade {shade_id}: {err}") from err
-            except (aiohttp.ClientConnectionError, aiohttp.ServerDisconnectedError) as err:
-                self._is_connected = False
-                raise ApiConnectionError(f"Connection error stopping shade {shade_id}: {err}") from err
-            except asyncio.TimeoutError as err:
-                raise ApiTimeoutError(f"Timeout stopping shade {shade_id}: {err}") from err
-            except (ValueError, Exception) as err:
-                raise ApiError(f"Error stopping shade {shade_id}: {err}") from err
+        """Stop a shade by setting it to its current position."""
+        _LOGGER.debug("Stopping shade %s by setting to current position", shade_id)
 
         try:
-            return await self._execute_with_retry(_stop_shade)
+            # Step 1: Fetch all shades to get the current position
+            all_shades = await self.get_shades()
+            if not all_shades:
+                _LOGGER.error("Failed to get shades for stopping shade %s", shade_id)
+                return False
+
+            # Find the specific shade we want to stop
+            target_shade = None
+            for shade in all_shades:
+                if shade.id == shade_id:
+                    target_shade = shade
+                    break
+
+            if not target_shade:
+                _LOGGER.error("Shade %s not found in the list of shades", shade_id)
+                return False
+
+            # Get the current position
+            current_position = target_shade.position
+            _LOGGER.debug("Current position of shade %s is %s", shade_id, current_position)
+
+            # Step 2: Set the position to the current position to stop the shade
+            result = await self.set_position(shade_id, current_position)
+
+            if result:
+                _LOGGER.info("Successfully stopped shade %s at position %s",
+                            shade_id, current_position)
+            else:
+                _LOGGER.error("Failed to stop shade %s", shade_id)
+
+            return result
+
         except Exception as err:
             _LOGGER.error("Error stopping shade %s: %s", shade_id, err)
-            raise
+            return False
 
     def has_shade(self, shade_id: int) -> bool:
         """Check if a shade exists."""
@@ -520,9 +530,3 @@ class CrestronAPI:
     def _is_auth_valid(self) -> bool:
         """Check if the current auth key is valid."""
         return self._auth_key and time.time() < self._auth_expiry
-
-    def _get_headers(self):
-        """Get headers for API requests."""
-        return {
-            API_AUTH_KEY_HEADER: self._auth_key,
-        }
